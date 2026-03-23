@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="L1_stul_ST" Id="{aa61e599-7fef-4701-b03b-56562f859ca4}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK L1_stul_ST
+VAR_INPUT
+	CO1: BOOL;
+	C5DPR: BOOL;
+	C4DPR: BOOL;
+END_VAR
+VAR_OUTPUT
+	MO: BOOL;
+	M5DPR: BOOL;
+	M4DPR: BOOL;
+END_VAR
+VAR
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <LineIds Name="L1_stul_ST">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

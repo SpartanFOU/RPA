@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="L5_prisavka_ST" Id="{c3ac309e-f1d2-4e67-92d3-09220d8d3688}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK L5_prisavka_ST
+VAR_INPUT
+	TL: BOOL;
+	C1DPR: BOOL;
+	CPC0: BOOL;
+	CPC1:BOOL;
+END_VAR
+VAR_OUTPUT
+	M1DPR: BOOL;
+	RPC0: BOOL;
+	RPC1: BOOL;
+	RPS2: BOOL;
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <LineIds Name="L5_prisavka_ST">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

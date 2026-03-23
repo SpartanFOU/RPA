@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <GVL Name="TAGS" Id="{05a77eba-0d33-450f-9bd0-2d930dfad430}">
+    <Declaration><![CDATA[ {attribute 'qualified_only'}
+VAR_GLOBAL
+	//vstupy na bývalé 602, čteno z terminálu na místě 602
+	CO1 AT %IX0.0 :BOOL; //Čidlo pod dopravníkem 5, pod otočným stolem
+	CO2 AT %IX0.1 :BOOL; //Indukční čidlo na otočném stole
+	CPB0 AT %IX0.2 :BOOL; //PB nad zásobníkem
+	CPB1 AT %IX0.3 :BOOL; //PB nad dopravníkem
+	CPG0 AT %IX0.4 :BOOL; //PG zasunut 
+	CPG1 AT %IX0.5 :BOOL; //PG vysunut (vyhozeni ze zasobniku)
+	CPH0 AT %IX0.6 :BOOL; //Mini plošinka dole
+	CPH1 AT %IX0.7 :BOOL; //Mini plošinka nahoře
+	CPHL AT %IX1.0 :BOOL; //Čidlo přítomnosti válečku na mini plošince
+	CPM0 AT %IX1.1 :BOOL; //PM zasunut (přeprava kovového vlečku na dopravník)
+	CPM1 AT %IX1.2 :BOOL; //PM vysunut
+	C3DPR AT %IX1.3 :BOOL; //Čidlo na konci dopravníku 3
+	C4DPR AT %IX1.4 :BOOL; //Čidlo na konci dopravníku 4
+	C5DPR AT %IX1.5 :BOOL; //Čidlo na začátku dopravníku 5 0-je přítomen
+	CPCER AT %IX1.6 :BOOL; //Červený spínač na ovládací skříni
+	CPMOD AT %IX1.7 :BOOL; // Modré tlačítko na ovládací skříni
+	//vstupy bývalé 602 čteno na místě bývale 607
+	CO3 AT %IX2.0 :BOOL; //Čidlo polohy otočného stolu
+	CO4 AT %IX2.1 :BOOL; //Čidlo pod třetí miskou na otočném stole
+	//Výstupy bývalé 602 na místě bývalé 602
+	MO AT %QX0.0 :BOOL; //Otočný stůl
+	RPB0 AT %QX0.1 :BOOL; //Rameno nad zásobníkem
+	RPB1 AT %QX0.2 :BOOL; //Rameno nad dopravníkem
+	RPG0 AT %QX0.3 :BOOL; //Zasunout PG
+	RPG1 AT %QX0.4 :BOOL; //Vyhodit váleček ze zásobníku (vysunout PG)
+	RPM AT %QX0.5 :BOOL; //Monostabilní rozvaděč pro PM
+	RPS1 AT %QX0.6 :BOOL; //Přísavka na rameni PB
+	M3DPR AT %QX1.0 :BOOL; //Dopravník 3 (nahoru)
+	M4DPR AT %QX0.7 :BOOL; //Dopravník 4 (ze zásobníku)
+	M5DPR AT %QX1.1 :BOOL; //Dopravník 5 (FESTO)
+	ELMAG AT %QX1.2 :BOOL; //Magnet na PM
+	zarZEL AT %QX1.3 :BOOL; //Zelená žárovka na ovládací skříni
+	zarCER AT %QX1.4 :BOOL; //Červená žárovka na ovládací skříni
+	zarORA AT %QX1.5 :BOOL; //Oranžová žárovka na ovládací skříni
+	zarErr AT %QX1.6 :BOOL; //Červená chybová žárovka
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

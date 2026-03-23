@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <GVL Name="TAGS" Id="{39b2e276-f747-4987-81c2-33d9c0ff5510}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	VYH_LEV AT %IX0.0: BOOL;		// Poloha levé výhybky (1 = vnější kolej)
+	VYH_PRA AT %IX0.1: BOOL;		// Poloha pravé výhybky (1 = vnější kolej)
+	VYH_ZAD AT %IX0.2: BOOL;		// Poloha zadní výhybky (1 = vnější kolej)
+	PRE_I, PRE_KLA AT %IX0.3: BOOL;	// Poloha I přepínače (1 = přep. v poloze I)
+	PRE_II, PRE_OPA AT %IX0.4: BOOL;// Poloha II přepínače (1 = přep. v poloze II)
+	// společné sepnutí PRE_I a PRE_II signalizuje, že napětí kolejí je mimo povolený rozsah a proto bylo odpojeno
+	TLA_LEV AT %IX0.5: BOOL;		// Tlačítko levé výhybky (1 = tlačítko stisknuto)
+	TLA_PRA AT %IX0.6: BOOL;		// Tlačítko pravé výhybky (1 = tlačítko stisknuto)
+	TLA_ZAD AT %IX0.7: BOOL;		// Tlačítko zadní výhybky (1 = tlačítko stisknuto)
+	HRA_PRA AT %IX1.0: BOOL;		// Pravé hradlo (1 = přítomno vozidlo)
+	HRA_LEV, SP1 AT %IX1.1: BOOL;	// Levé hradlo (1 = přítomno vozidlo)
+	HRA_ZAD AT %IX1.2: BOOL;		// Zadní hradlo (1 = přítomno vozidlo)
+	HRA_ZAV, SP2 AT %IX1.3: BOOL;	// Hradlo závor (1 = přítomno vozidlo)
+
+	ZAVORY, Z AT %QX0.4: BOOL;		// Stahování závor (1 = závory staženy)
+	KLADNY AT %QX0.5: BOOL;			// Jízda v kladném směru (1 = jede)
+	OPACNY AT %QX0.6: BOOL;			// Jízda v opačném směru (1 = jede)
+	// výhybky se přestavují oběma směry impulsem o minimální délce 25 ms
+	IMP_LEV AT %QX0.7: BOOL;		// Přestavování levé výhybky (1 = přestavit)
+	IMP_PRA AT %QX1.0: BOOL;		// Přestavování pravé výhybky (1 = přestavit)
+	IMP_ZAD AT %QX1.1: BOOL;		// Přestavování zadní výhybky (1 = přestavit)
+	VYHYBKY AT %QX1.2: BOOL;		// Převzetí ovládání výhybek (1 = ovládá automat)
+	JIZDA AT %QX1.3: BOOL;			// Převzetí ovládání jízdy (1 = ovládá automat)
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <GVL Name="TAGS" Id="{f594d41f-4511-4573-bd6c-4a24958a7bfa}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	//Vstupy na býlalé PneuAlpha, četny z terminálu na místě 607
+	CPL AT %IX0.0 :BOOL; //Čidlo přitomnosti na balíkové plošině
+	CPD0 AT %IX0.1 :BOOL; //Čidlo zasunutí PD
+	CPD1 AT %IX0.2 :BOOL; //Čidlo vysunutí PD
+	CPE0 AT %IX0.3 :BOOL; //Čidlo dolní polohy PE
+	CPE1 AT %IX0.4 :BOOL; //Čidlo horní polohy PE
+	//Nahrazení Tlačítka OK Zeleným tlačítkem
+	OK AT %IX0.6 :BOOL; //Vstup inkrementálního čítače / zelené tlačítko pro spuštění úlohy
+	//Výstupy bývalé PneuAlpha, zapsivány na terminál bývalé 607
+	
+	RPE0 AT %QX1.1 :BOOL; //Pneumoor PE dolu
+	RPE1 AT %QX1.2 :BOOL; //Pneumoor PE nahoru
+	RPD AT %QX1.3 :BOOL; //PD vysunut
+	
+	ERR AT %QX1.4 :BOOL; //žárovka na kabelové liště (dřívre pneu 49)
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

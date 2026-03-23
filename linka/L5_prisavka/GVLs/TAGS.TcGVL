@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <GVL Name="TAGS" Id="{1d1ddea9-ba79-4ace-b1e4-446249ef4d99}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	//Vstupy na bývalé TC607 - reálně zapojené, čteno z terminálu na místě 607
+	TL AT %IX0.0 :BOOL; //Vstup inkrementálního čítače / zelené tlačítko NEBUDE VYUŽITO
+	CO3 AT %IX0.1 :BOOL; //Vstup inkrementálního čítače / čidlo CO3
+	CO4 AT %IX0.2 :BOOL; //Čidlo pod třetí miskou na otočném stole
+	ICR AT %IX0.3 :BOOL; //Vstup inkrementálního čítače
+	C1DPR AT %IX0.4 :BOOL; //Čidlo na dorpavníku 1
+	C2DPR AT %IX0.5 :BOOL; //Čidlo na dopravníku 2 
+	CPA0 AT %IX0.6 :BOOL; //Lineární pneumotor nad otočným stolem
+	CPA1 AT %IX0.7 :BOOL; //Lineární pneumotor nad dopravníkem
+	CPC0 AT %IX1.0 :BOOL; //Pneumotor s přísavkou zasunut (nahoře)
+	CPC1 AT %IX1.1 :BOOL; //Pneumotor s přísavkou vysunut (dole)
+	CPC2 AT %IX1.2 :BOOL; //Pneumotor s přísavkou prostřední čidlo
+	CPD0 AT %IX1.3 :BOOL; //Vyhazovací pneumotor zasunut
+	CPD1 AT %IX1.4 :BOOL; //Vyhazovací pneumotor vysunut
+	CPE0 AT %IX1.5 :BOOL; //Plošina v dolní poloze
+	CPE1 AT %IX1.6 :BOOL; //Plošina v horní poloze
+	CPL AT %IX1.7 :BOOL; //Čidlo na plošině
+	//Vstupy na bývalé TC607 přebrané z PneuAlpha - L6_plosina (pouze SW čtení)
+	RPD AT %IX2.0 :BOOL; //Vysunutí válečku z plošiny
+	RPE0 AT %IX2.1 :BOOL; //Rozvaděč plošiny dolů
+	RPE1 AT %IX2.2 :BOOL; //Rozvaděč plošiny nahoru
+	Pneu49 AT %IX2.3 :BOOL; //výstup z PneuAlpha (nepoužito)
+	//Výstupy bývalé TC607 na místě bývalé 607
+	RPA0 AT %QX0.0 :BOOL; //Lieární pneumotor nad  otočný stůl
+	RPA1 AT %QX0.1 :BOOL; //Lineární pneumotor nad dopravník
+	RPC0 AT %QX0.2 :BOOL; //Pneumotor s přísavkou nahoru
+	RPC1 AT %QX0.3 :BOOL; //Pneumotor s přísavkou dolů
+	RPH AT %QX0.4 :BOOL; //Mini plošinka nahoru
+	RPS2 AT %QX0.5 :BOOL; //Přísavka pneumotoru PC
+	M1DPR AT %QX0.6 :BOOL; //Čopravník číslo 1 (malý)
+	M2DPR AT %QX0.7 :BOOL; //Dopravník číslo 2 (dlouhý)
+	zarErr AT %QX1.0 :BOOL; //Červená chybová žárovka
+	zarOr AT %QX1.1 :BOOL; //Oranžová žárovka na ovládací skříni
+	Pneu48 AT %QX2.0 :BOOL; //vstup do pneu alpha (nepoužito)
+	//Vstup čtený na místě bývalé TC602, využití pro spouštění úlohy
+	CPMOD AT %IX2.4 :BOOL; //Modré tlačítko na ovládací skříni
+	CPCER AT %IX2.5 :BOOL; //Červený přepínač na ovládací skříni
+
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

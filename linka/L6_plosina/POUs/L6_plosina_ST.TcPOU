@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="L6_plosina_ST" Id="{37ef7e14-efd0-4b2a-8704-f577b337137d}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK L6_plosina_ST
+VAR_INPUT
+	TL: BOOL;
+	CPL: BOOL;
+	CPE0: BOOL;
+	CPE1: BOOL;
+	CPD0: BOOL;
+	CPD1: BOOL;
+END_VAR
+VAR_OUTPUT
+	RPE0: BOOL;
+	RPE1: BOOL;
+	RPD: BOOL;
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <LineIds Name="L6_plosina_ST">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
