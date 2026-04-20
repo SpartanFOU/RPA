@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <DUT Name="E_SystemState" Id="{a1b2c3d4-0002-4000-8000-000000000002}">
+    <Declaration><![CDATA[// PackML-inspired operating state enumeration.
+// Numeric values match SCADA.systemstav (%MW106) encoding.
+{attribute 'strict'}
+TYPE E_SystemState :
+(
+    STOPPED     := 0,   // Všechny výstupy de-energizovány; systém bezpečný
+    STARTING    := 1,   // Inicializace: čtení poloh výhybek, převzetí řízení
+    RUNNING     := 2,   // Normální automatický provoz
+    HOLDING     := 3,   // Přechodový stav: zastavování lokomotivy
+    HELD        := 4,   // Pozastaveno; čeká na Resume
+    RESUMING    := 5,   // Obnovení jízdy po HELD
+    COMPLETING  := 6,   // Plynné zastavení sekvence
+    COMPLETE    := 7,   // Sekvence dokončena; čeká na Reset
+    ABORTING    := 8,   // Okamžité zastavení všech výstupů
+    ABORTED     := 9,   // Porucha; čeká na Clear od operátora
+    CLEARING    := 10,  // Potvrzení poruchy, reset výstupů
+    MANUAL      := 11,  // Manuální režim s antikolizní ochranou
+    SERVICE     := 12   // Servisní režim (PIN); antikolize vypnuta
+) WORD;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

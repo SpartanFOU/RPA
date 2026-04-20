@@ -1,0 +1,50 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Projects\\RPA\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{FBD64E84-4D7F-407A-B3DA-86EB6410D66F}|linka\\L4_kolejiste\\L4_kolejiste.plcproj|C:\\Projects\\RPA\\linka\\L4_kolejiste\\GVLs\\IO.TcGVL||{CFF47BB1-5559-4BDE-A2AF-06B30BC64F6C}",
+      "RelativeMoniker": "D:0:0:{FBD64E84-4D7F-407A-B3DA-86EB6410D66F}|linka\\L4_kolejiste\\L4_kolejiste.plcproj|solutionrelative:linka\\L4_kolejiste\\GVLs\\IO.TcGVL||{CFF47BB1-5559-4BDE-A2AF-06B30BC64F6C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FBD64E84-4D7F-407A-B3DA-86EB6410D66F}|linka\\L4_kolejiste\\L4_kolejiste.plcproj|C:\\Projects\\RPA\\linka\\L4_kolejiste\\GVLs\\SCADA.TcGVL||{CFF47BB1-5559-4BDE-A2AF-06B30BC64F6C}",
+      "RelativeMoniker": "D:0:0:{FBD64E84-4D7F-407A-B3DA-86EB6410D66F}|linka\\L4_kolejiste\\L4_kolejiste.plcproj|solutionrelative:linka\\L4_kolejiste\\GVLs\\SCADA.TcGVL||{CFF47BB1-5559-4BDE-A2AF-06B30BC64F6C}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "IO",
+              "DocumentMoniker": "C:\\Projects\\RPA\\linka\\L4_kolejiste\\GVLs\\IO.TcGVL",
+              "RelativeDocumentMoniker": "linka\\L4_kolejiste\\GVLs\\IO.TcGVL",
+              "ToolTip": "IO [linka.L4_kolejiste]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-04-19T17:10:35.495Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "SCADA",
+              "DocumentMoniker": "C:\\Projects\\RPA\\linka\\L4_kolejiste\\GVLs\\SCADA.TcGVL",
+              "RelativeDocumentMoniker": "linka\\L4_kolejiste\\GVLs\\SCADA.TcGVL",
+              "ToolTip": "SCADA [linka.L4_kolejiste]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-04-19T16:56:41.587Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

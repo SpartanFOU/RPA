@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <GVL Name="SCADA" Id="{a1b2c3d4-0001-4000-8000-000000000001}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+    // -----------------------------------------------------------------------
+    // SCADA / HMI M-variable interface  (adresace od %M100)
+    // -----------------------------------------------------------------------
+
+    // --- Řídící tlačítka (%MX100.x) ---
+    SCADA_START     AT %MX100.0 : BOOL;  // Start automatické sekvence
+    SCADA_RESET     AT %MX100.1 : BOOL;  // Reset poruchy, návrat do STOPPED
+    SCADA_STOP      AT %MX100.2 : BOOL;  // Plynné zastavení → COMPLETING
+    SCADA_MAN       AT %MX100.3 : BOOL;  // Přepnutí do manuálního režimu
+    SCADA_ESTOP     AT %MX100.4 : BOOL;  // Softwarový E-STOP (SW ekvivalent HW tlač.)
+
+    // --- Manuální ovládání pohonů (%MX101.x) ---
+    SCADA_MAN_KLADNY    AT %MX101.0 : BOOL;  // Ruční jízda v kladném směru
+    SCADA_MAN_OPACNY    AT %MX101.1 : BOOL;  // Ruční jízda v opačném směru
+    SCADA_MAN_ZAVORY    AT %MX101.2 : BOOL;  // Ruční stažení závor
+    SCADA_MAN_IMP_LEV   AT %MX101.3 : BOOL;  // Ruční impuls levé výhybky
+    SCADA_MAN_IMP_PRA   AT %MX101.4 : BOOL;  // Ruční impuls pravé výhybky
+    SCADA_MAN_IMP_ZAD   AT %MX101.5 : BOOL;  // Ruční impuls zadní výhybky
+
+    // --- Stavové slovo technologické sekvence ---
+    // High byte (%MB105): stav L4a (závorový automat)
+    //   0 = IDLE, 1 = BLOCKED, 2 = LIFTING
+    // Low byte (%MB104): stav L4b (výhybkový automat)
+    //   0 = IDLE, 1 = IMPULSE_C, 2 = WAIT_C, 3 = IMPULSE_D, 4 = WAIT_D
+    techstav        AT %MW104 : WORD;
+
+    // --- Stavové slovo systému (PackML) ---
+    //   0=STOPPED, 1=STARTING, 2=RUNNING, 3=HOLDING, 4=HELD,
+    //   5=RESUMING, 6=COMPLETING, 7=COMPLETE, 8=ABORTING,
+    //   9=ABORTED, 10=CLEARING, 11=MANUAL, 12=SERVICE
+    systemstav      AT %MW106 : WORD;
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

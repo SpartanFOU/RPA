@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_DriveCtrl" Id="{a1b2c3d4-0007-4000-8000-000000000007}" SpecialFunc="None">
+    <Declaration><![CDATA[// Locomotive drive control.
+// Enforces mutual exclusion between KLADNY and OPACNY.
+// Detects voltage fault: PRE_KLA AND PRE_OPA both TRUE simultaneously.
+// Fault is latched — cleared only when FB_MachineControl enters CLEARING state
+// (inClearFault = TRUE for one scan).
+FUNCTION_BLOCK FB_DriveCtrl
+VAR_INPUT
+    inEnable        : BOOL;  // TRUE = auto or manual mode active
+    inClearFault    : BOOL;  // TRUE for one scan when CLEARING state entered
+    inKLADNY_cmd    : BOOL;  // Auto: požadavek jízdy v kladném směru
+    inOPACNY_cmd    : BOOL;  // Auto: požadavek jízdy v opačném směru
+    inPRE_KLA       : BOOL;  // Přepínač / zpětná vazba kladného směru
+    inPRE_OPA       : BOOL;  // Přepínač / zpětná vazba opačného směru
+    inMan_Kladny    : BOOL;  // Manual: jízda vpřed
+    inMan_Opacny    : BOOL;  // Manual: jízda vzad
+END_VAR
+VAR_OUTPUT
+    outKLADNY    : BOOL;  // Relé kladného směru
+    outOPACNY    : BOOL;  // Relé opačného směru
+    outJIZDA     : BOOL;  // PLC vlastní řízení jízdy (guard pro FB_Barrier/SwitchRouter)
+    outFault     : BOOL;  // FDI: latched fault flag
+    outFaultCode : WORD;  // Kód aktivní poruchy
+    outgvFault   : BOOL;  // Napěťová porucha (PRE_KLA AND PRE_OPA)
+END_VAR
+VAR
+    bFault_latch    : BOOL;   // Latch: porucha drží až do CLEARING
+    wFaultCode_hold : WORD;   // Uložení kódu poruchy po latch
+
+    // FDI fault codes
+    c_FAULT_VOLTAGE : WORD := 16#0001;  // PRE_KLA AND PRE_OPA — napěťová porucha transformátoru
+    c_FAULT_MUTEX   : WORD := 16#0002;  // Pokus o současné sepnutí obou směrů
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// ═══════════════════════════════════════════════════════════════════════
+// 1. Clear fault latch when CLEARING state reached
+// ═══════════════════════════════════════════════════════════════════════
+IF inClearFault THEN
+    bFault_latch    := FALSE;
+    wFaultCode_hold := 0;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2. Voltage fault detection — PRE_KLA AND PRE_OPA both TRUE
+//    Transformer protection relay has tripped; rail voltage is off.
+//    This is latched and can only be cleared by CLEARING state.
+// ═══════════════════════════════════════════════════════════════════════
+IF inPRE_KLA AND inPRE_OPA THEN
+    bFault_latch    := TRUE;
+    wFaultCode_hold := c_FAULT_VOLTAGE;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// 3. Publish latched fault to outputs
+// ═══════════════════════════════════════════════════════════════════════
+outFault     := bFault_latch;
+outFaultCode := wFaultCode_hold;
+outgvFault   := (wFaultCode_hold = c_FAULT_VOLTAGE) AND bFault_latch;
+
+// ═══════════════════════════════════════════════════════════════════════
+// 4. If fault active — de-energise drive immediately
+// ═══════════════════════════════════════════════════════════════════════
+IF bFault_latch THEN
+    outKLADNY := FALSE;
+    outOPACNY := FALSE;
+    outJIZDA  := FALSE;
+    RETURN;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// 5. Disabled — de-energise
+// ═══════════════════════════════════════════════════════════════════════
+IF NOT inEnable THEN
+    outKLADNY := FALSE;
+    outOPACNY := FALSE;
+    outJIZDA  := FALSE;
+    RETURN;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// 6. Mutual exclusion check on auto commands
+// ═══════════════════════════════════════════════════════════════════════
+IF inKLADNY_cmd AND inOPACNY_cmd THEN
+    bFault_latch    := TRUE;
+    wFaultCode_hold := c_FAULT_MUTEX;
+    outKLADNY := FALSE;
+    outOPACNY := FALSE;
+    outJIZDA  := FALSE;
+    RETURN;
+END_IF
+
+// Mutual exclusion on manual commands — silently suppress both (no fault)
+IF inMan_Kladny AND inMan_Opacny THEN
+    outKLADNY := FALSE;
+    outOPACNY := FALSE;
+    outJIZDA  := TRUE;
+    RETURN;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// 7. Normal operation — auto commands take priority over manual
+// ═══════════════════════════════════════════════════════════════════════
+outKLADNY := inKLADNY_cmd OR inMan_Kladny;
+outOPACNY := inOPACNY_cmd OR inMan_Opacny;
+outJIZDA  := TRUE;
+]]></ST>
+    </Implementation>
+    <LineIds Name="FB_DriveCtrl">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

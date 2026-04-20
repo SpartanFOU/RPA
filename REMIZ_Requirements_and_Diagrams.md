@@ -3,6 +3,84 @@
 
 ---
 
+## 0. Common Requirements (All Modules)
+
+### 0.1 Operating Modes
+
+| Mode | Description |
+|---|---|
+| **AUTOMATION** | Technology sequence runs automatically via `FB_MachineControl` + child FBs |
+| **MANUAL** | All non-colliding actuator moves executable individually via HW buttons or SCADA M-variables |
+| **SERVICE** | Manual control without anti-collision protection; access secured by numeric PIN |
+
+Mode transitions are managed exclusively inside `FB_MachineControl`.
+
+### 0.2 Standard Button Interface
+
+| Button | HW Signal | SCADA M-variable | Description |
+|---|---|---|---|
+| START | HW input | `%M100.0` | Start automation sequence from STOPPED |
+| RESET | HW input | `%M100.1` | Clear fault, return to STOPPED |
+| STOP | HW input | `%M100.2` | Graceful stop → COMPLETING |
+| MAN | HW input | `%M100.3` | Toggle MANUAL mode |
+| E-STOP | HW NC input (3-wire) | `%M100.4` | Immediate abort from any state |
+
+> **E-STOP wiring:** 3-wire (NC) connection — break in any conductor (wire, button, or connector fault) is treated as E-STOP activation. E-STOP action depends on machine state:
+> - In RUNNING/HOLDING/HELD: immediate de-energise all outputs → ABORTING
+> - In STOPPED/COMPLETE: hold safe state, set gvFault, require RESET
+> - In STARTING: abort startup sequence → ABORTING
+
+### 0.3 SCADA / HMI M-Variable Address Map
+
+| Variable | Address | Type | Description |
+|---|---|---|---|
+| `SCADA_START` | `%MX100.0` | BOOL | Start command |
+| `SCADA_RESET` | `%MX100.1` | BOOL | Reset / clear fault |
+| `SCADA_STOP` | `%MX100.2` | BOOL | Stop command |
+| `SCADA_MAN` | `%MX100.3` | BOOL | Manual mode select |
+| `SCADA_ESTOP` | `%MX100.4` | BOOL | Software E-STOP |
+| Manual controls | `%MX101.0`–`%MX103.7` | BOOL | Module-specific manual actuator commands (see Section 0.5) |
+| `techstav` | `%MW104` | WORD | Technology sequence state (L4a/L4b combined current step) |
+| `systemstav` | `%MW106` | WORD | PackML machine state (STOPPED=0, STARTING=1, RUNNING=2, …) |
+
+### 0.4 SCADA Manual Controls — L4_kolejiste (`%M101.0`–`%M103.7`)
+
+The full range `%M101.0`–`%M103.7` (24 bits) is reserved for manual actuator commands across all modules. L4_kolejiste uses the first 6 bits; the remainder are reserved for expansion or other modules.
+
+| Address | Variable | Description |
+|---|---|---|
+| `%MX101.0` | `SCADA_MAN_KLADNY` | Manual: drive forward |
+| `%MX101.1` | `SCADA_MAN_OPACNY` | Manual: drive reverse |
+| `%MX101.2` | `SCADA_MAN_ZAVORY` | Manual: lower barriers |
+| `%MX101.3` | `SCADA_MAN_IMP_LEV` | Manual: toggle left switch |
+| `%MX101.4` | `SCADA_MAN_IMP_PRA` | Manual: toggle right switch |
+| `%MX101.5` | `SCADA_MAN_IMP_ZAD` | Manual: toggle rear switch |
+| `%MX101.6`–`%MX103.7` | *(reserved)* | Reserved for additional modules / future expansion |
+
+### 0.5 Drive / Actuator Diagnostics (FDI)
+
+Each drive circuit (PLC output → cable → actuator → sensor → PLC input) shall include fault detection:
+
+| Fault Type | Detection Method | Action |
+|---|---|---|
+| **Output stuck ON** | Output commanded OFF but feedback still active after `c_tFDI_Timeout` | Set drive fault flag, → ABORTING |
+| **Output stuck OFF / no travel** | Output commanded ON but feedback not reached within `c_tFDI_Timeout` | Set drive fault flag, → ABORTING |
+| **Sensor disagreement** | Two redundant position sensors both active simultaneously (where applicable) | Set sensor fault flag, → ABORTING |
+
+Each drive FB (`FB_Barrier`, `FB_SwitchRouter`) exposes `outFault : BOOL` and `outFaultCode : WORD`.
+
+### 0.6 Service Mode
+
+- Accessible from MANUAL mode only
+- Entry requires 4-digit numeric PIN verified in ST (`c_ServicePin : INT`)
+- In SERVICE mode: anti-collision interlocks bypassed, all outputs directly commandable
+- Exit: timeout (`c_tServiceTimeout`) or explicit exit command resets to MANUAL
+- `systemstav` reflects SERVICE as a distinct state value
+
+---
+
+---
+
 ## 1. System Requirements — Automation Pyramid
 
 ### Level 0 — Technology (Process / Physical)
@@ -285,6 +363,131 @@ stateDiagram-v2
         Guard: VYHYBKY must be TRUE
         Guard: do NOT impulse while loco is on the switch
     end note
+```
+
+---
+
+---
+
+## 4. Program Architecture
+
+### 4.1 FB Decomposition
+
+The program follows **weak OOP**: logic is decomposed into function blocks with explicit input/output ports. Global variables are minimised — only I/O GVLs and SCADA M-variables are global.
+
+```
+MAIN (PRG)
+│
+├── FB_IO                        (* Maps GVL_IO ↔ internal signals; single point of I/O access *)
+│
+├── FB_MachineControl            (* SHARED — one instance per module *)
+│   ├── Inputs:  HW buttons, SCADA M100 vars, child FB fault flags
+│   ├── Outputs: systemstav (%MW106), inEnable to child FBs, mode flags
+│   └── Contains:
+│       ├── PackML state machine  (CASE systemstav OF …)
+│       ├── Mode logic            (AUTO / MANUAL / SERVICE)
+│       ├── E-STOP handling       (3-wire NC; immediate abort path)
+│       ├── START/RESET/STOP edge detection
+│       └── Service PIN verification
+│
+├── FB_Barrier                   (* L4a — barrier control *)
+│   ├── Inputs:  inEnable, inSP2, inJIZDA
+│   ├── Outputs: outZAVORY, outFault, outFaultCode, outTechstav
+│   └── Contains: IDLE→BLOCKED→LIFTING state machine (CASE techstav_barrier OF …)
+│
+├── FB_SwitchRouter              (* L4b — switch routing *)
+│   ├── Inputs:  inEnable, inKLADNY, inOPACNY, inVYH_LEV, inVYH_PRA, inHRA_LEV, inHRA_PRA
+│   ├── Outputs: outIMP_LEV, outIMP_PRA, outIMP_ZAD, outFault, outFaultCode, outTechstav
+│   └── Contains: IDLE→IMPULSE_x→WAIT_x state machine (CASE techstav_switch OF …)
+│
+└── FB_DriveCtrl                 (* Loco drive — mutual exclusion + fault detection *)
+    ├── Inputs:  inEnable, inKLADNY_cmd, inOPACNY_cmd, inPRE_KLA, inPRE_OPA
+    ├── Outputs: outKLADNY, outOPACNY, outFault, outFaultCode, gvFault
+    └── Contains: mutual exclusion interlock + FDI voltage fault (PRE_KLA AND PRE_OPA)
+```
+
+### 4.2 `FB_MachineControl` — Interface
+
+```pascal
+FUNCTION_BLOCK FB_MachineControl
+VAR_INPUT
+    (* HW buttons *)
+    inBTN_Start     : BOOL;
+    inBTN_Reset     : BOOL;
+    inBTN_Stop      : BOOL;
+    inBTN_Man       : BOOL;
+    inBTN_EStop     : BOOL;   (* NC — TRUE = safe, FALSE = E-STOP active *)
+
+    (* SCADA equivalents — OR'd with HW internally *)
+    inSCADA_Start   : BOOL;   (* %M100.0 *)
+    inSCADA_Reset   : BOOL;   (* %M100.1 *)
+    inSCADA_Stop    : BOOL;   (* %M100.2 *)
+    inSCADA_Man     : BOOL;   (* %M100.3 *)
+    inSCADA_EStop   : BOOL;   (* %M100.4 *)
+
+    (* Service PIN *)
+    inServicePin    : INT;
+
+    (* Child FB fault flags *)
+    inFault_Barrier : BOOL;
+    inFault_Switch  : BOOL;
+    inFault_Drive   : BOOL;
+END_VAR
+VAR_OUTPUT
+    outEnable_Auto  : BOOL;   (* TRUE → child FBs run in auto mode *)
+    outEnable_Man   : BOOL;   (* TRUE → manual commands passed through *)
+    outServiceMode  : BOOL;   (* TRUE → anti-collision bypassed *)
+    outSystemstav   : WORD;   (* %MW106 — PackML state enum *)
+    outgvFault      : BOOL;
+END_VAR
+```
+
+### 4.3 `techstav` Encoding (`%MW104`)
+
+`techstav` is the **combined technology sequence state** — high byte = L4a barrier state, low byte = L4b switch state.
+
+| Byte | Bits | Meaning |
+|---|---|---|
+| High byte `%MB105` | 0–7 | L4a barrier state: 0=IDLE, 1=BLOCKED, 2=LIFTING |
+| Low byte `%MB104` | 0–7 | L4b switch state: 0=IDLE, 1=IMPULSE_C, 2=WAIT_C, 3=IMPULSE_D, 4=WAIT_D |
+
+### 4.4 `systemstav` Encoding (`%MW106`)
+
+| Value | PackML State |
+|---|---|
+| 0 | STOPPED |
+| 1 | STARTING |
+| 2 | RUNNING |
+| 3 | HOLDING |
+| 4 | HELD |
+| 5 | RESUMING |
+| 6 | COMPLETING |
+| 7 | COMPLETE |
+| 8 | ABORTING |
+| 9 | ABORTED |
+| 10 | CLEARING |
+| 11 | MANUAL |
+| 12 | SERVICE |
+
+### 4.5 File Structure (L4_kolejiste)
+
+```
+L4_kolejiste/
+├── GVLs/
+│   ├── IO.TcGVL          (* Raw EtherCAT %IX / %QX addresses *)
+│   ├── TAGS.TcGVL        (* Human-readable signal aliases *)
+│   └── SCADA.TcGVL       (* M-variable declarations %M100–%MW106 *)
+├── POUs/
+│   ├── MAIN.TcPOU        (* Top-level PRG: instantiates all FBs, wires ports *)
+│   ├── FB_IO.TcPOU       (* I/O mapping block *)
+│   ├── FB_MachineControl.TcPOU   (* Shared: PackML + modes + E-STOP + PIN *)
+│   ├── FB_Barrier.TcPOU          (* L4a state machine + FDI *)
+│   ├── FB_SwitchRouter.TcPOU     (* L4b state machine + FDI *)
+│   └── FB_DriveCtrl.TcPOU        (* Drive mutual exclusion + fault *)
+├── DUTs/
+│   └── E_SystemState.TcDUT       (* ENUM for systemstav values *)
+└── VISUs/
+    └── VIS_Main.TcVIS            (* HMI: sensor lamps, state display, fault banner, manual buttons *)
 ```
 
 ---

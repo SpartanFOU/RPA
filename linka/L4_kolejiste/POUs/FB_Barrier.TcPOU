@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_Barrier" Id="{a1b2c3d4-0005-4000-8000-000000000005}" SpecialFunc="None">
+    <Declaration><![CDATA[// L4a — Barrier (závora) control.
+// State machine: IDLE → BLOCKED → LIFTING → IDLE
+// Runs only when inEnable = TRUE (set by FB_MachineControl).
+// In manual mode (inEnable=FALSE, inManEnable=TRUE) manual command passes through.
+FUNCTION_BLOCK FB_Barrier
+VAR_INPUT
+    inEnable    : BOOL;  // TRUE = auto mode active
+    inManEnable : BOOL;  // TRUE = manual mode active (from FB_MachineControl.outEnable_Man)
+    inSP2       : BOOL;  // Hradlo závor — vozidlo přítomno (HRA_ZAV)
+    inJIZDA     : BOOL;  // PLC vlastní řízení jízdy (auto guard only)
+    inMan_Zavory : BOOL; // Manuální povel: závory dolů
+END_VAR
+VAR_OUTPUT
+    outZAVORY    : BOOL;  // Závory dolů (1 = staženo)
+    outFault     : BOOL;  // FDI: porucha závorového okruhu
+    outFaultCode : WORD;  // Kód poruchy
+    outTechstav  : BYTE;  // L4a stav: 0=IDLE,1=BLOCKED,2=LIFTING → high byte %MW104
+END_VAR
+VAR
+    eState       : INT := 0;  // 0=IDLE, 1=BLOCKED, 2=LIFTING
+
+    rSP2_Rise    : R_TRIG;
+    rSP2_Fall    : F_TRIG;
+
+    tLiftDelay   : TON;   // Prodleva před zvednutím závor po průjezdu
+
+    // FDI
+    tFDI_Down    : TON;   // Max. čas pro stažení závor
+    tFDI_Up      : TON;   // Max. čas pro zvednutí závor
+    bFault_latch : BOOL;  // Latch poruchy
+
+    // Constants
+    c_tLiftDelay    : TIME := T#500MS;
+    c_tFDI_Timeout  : TIME := T#3S;
+
+    // FDI fault codes
+    c_FAULT_DOWN_TIMEOUT : WORD := 16#0101;  // Závory se nestáhly včas
+    c_FAULT_UP_TIMEOUT   : WORD := 16#0102;  // Závory se nezvedaly včas
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// Edge detection always runs
+rSP2_Rise(CLK := inSP2);
+rSP2_Fall(CLK := inSP2);
+
+// ═══════════════════════════════════════════════════════════════════════
+// Manual mode — bypass state machine, pass command directly
+// ═══════════════════════════════════════════════════════════════════════
+IF NOT inEnable THEN
+    IF inManEnable THEN
+        outZAVORY := inMan_Zavory;
+    ELSE
+        outZAVORY := FALSE;  // Safe state when neither auto nor manual
+    END_IF
+    // Reset state machine so it starts clean when auto re-enables
+    eState := 0;
+    tLiftDelay(IN := FALSE);
+    tFDI_Down(IN := FALSE);
+    tFDI_Up(IN := FALSE);
+    outTechstav := 0;
+    RETURN;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// Auto guard: JIZDA must be asserted before barriers can operate
+// ═══════════════════════════════════════════════════════════════════════
+IF NOT inJIZDA THEN
+    outZAVORY   := FALSE;
+    eState      := 0;
+    outTechstav := 0;
+    tLiftDelay(IN := FALSE);
+    RETURN;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// L4a state machine
+// ═══════════════════════════════════════════════════════════════════════
+CASE eState OF
+
+    0: // IDLE — závory nahoře, čekání na lokomotivu
+        outZAVORY := FALSE;
+        tFDI_Down(IN := FALSE);
+        tFDI_Up(IN := FALSE);
+        IF rSP2_Rise.Q THEN
+            tFDI_Down(IN := FALSE);  // Reset before arming
+            eState := 1;
+        END_IF
+
+    1: // BLOCKED — závory dolů, lokomotiva na přejezdu
+        outZAVORY := TRUE;
+        // FDI: barriers should be physically down quickly — sensor not applicable here
+        // (no separate barrier-down sensor in this layout)
+        tFDI_Down(IN := FALSE);
+        IF rSP2_Fall.Q THEN
+            tLiftDelay(IN := FALSE);
+            eState := 2;
+        END_IF
+
+    2: // LIFTING — lokomotiva prošla, čekáme c_tLiftDelay před zvednutím
+        outZAVORY := TRUE;  // Stále dolů během prodlevy
+        tLiftDelay(IN := TRUE, PT := c_tLiftDelay);
+        IF rSP2_Rise.Q THEN
+            // Další průjezd před vypršením — zpět do BLOCKED
+            tLiftDelay(IN := FALSE);
+            eState := 1;
+        ELSIF tLiftDelay.Q THEN
+            tLiftDelay(IN := FALSE);
+            outZAVORY := FALSE;
+            eState := 0;
+        END_IF
+
+END_CASE
+
+outTechstav := INT_TO_BYTE(eState);
+
+// ═══════════════════════════════════════════════════════════════════════
+// FDI — fault latch (cleared only by FB_MachineControl CLEARING state)
+// ═══════════════════════════════════════════════════════════════════════
+// (No dedicated position feedback sensor for barriers in this layout.
+//  FDI extended here for future sensor addition.)
+IF NOT bFault_latch THEN
+    outFault     := FALSE;
+    outFaultCode := 0;
+END_IF
+]]></ST>
+    </Implementation>
+    <LineIds Name="FB_Barrier">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

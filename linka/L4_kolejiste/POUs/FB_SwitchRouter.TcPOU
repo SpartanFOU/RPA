@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_SwitchRouter" Id="{a1b2c3d4-0006-4000-8000-000000000006}" SpecialFunc="None">
+    <Declaration><![CDATA[// L4b — Switch routing (výhybkový automat).
+// Aligns left (C) and right (D) double-track switches based on drive direction.
+// State machine: IDLE → IMPULSE_C → WAIT_C → [IMPULSE_D → WAIT_D →] IDLE
+// Runs only when inEnable = TRUE (set by FB_MachineControl).
+FUNCTION_BLOCK FB_SwitchRouter
+VAR_INPUT
+    inEnable      : BOOL;  // TRUE = auto mode active
+    inManEnable   : BOOL;  // TRUE = manual mode active
+    inVYHYBKY     : BOOL;  // PLC vlastní řízení výhybek (auto guard)
+    inKLADNY      : BOOL;  // Jede v kladném směru
+    inOPACNY      : BOOL;  // Jede v opačném směru
+    inVYH_LEV     : BOOL;  // Poloha levé výhybky (1 = vnější kolej)
+    inVYH_PRA     : BOOL;  // Poloha pravé výhybky (1 = vnější kolej)
+    inHRA_LEV     : BOOL;  // SP1 — vozidlo na levém hradle (nesmí přestavovat)
+    inHRA_PRA     : BOOL;  // Vozidlo na pravém hradle (nesmí přestavovat)
+
+    // Manual overrides
+    inMan_IMP_LEV : BOOL;
+    inMan_IMP_PRA : BOOL;
+    inMan_IMP_ZAD : BOOL;
+END_VAR
+VAR_OUTPUT
+    outIMP_LEV  : BOOL;  // Impuls levé výhybky
+    outIMP_PRA  : BOOL;  // Impuls pravé výhybky
+    outIMP_ZAD  : BOOL;  // Impuls zadní výhybky (rozšíření)
+    outFault     : BOOL;
+    outFaultCode : WORD;
+    outTechstav  : BYTE;  // Stav L4b: 0=IDLE,1=IMP_C,2=WAIT_C,3=IMP_D,4=WAIT_D (→ low byte MW104)
+END_VAR
+VAR
+    eState          : INT := 0;
+    // 0=IDLE, 1=IMPULSE_C, 2=WAIT_C, 3=IMPULSE_D, 4=WAIT_D
+
+    bReqOuter       : BOOL;  // Požadovaná poloha: TRUE = vnější kolej (kladný směr)
+    bLEV_Wrong      : BOOL;  // Levá výhybka v nesprávné poloze
+    bPRA_Wrong      : BOOL;  // Pravá výhybka v nesprávné poloze
+
+    tImpulseHold    : TON;   // Délka impulsu (≥ 150 ms)
+    tSwitchDone     : TON;   // Čekání na dokončení přestavení
+
+    c_tImpulseHold  : TIME := T#150MS;
+    c_tSwitchDone   : TIME := T#120MS;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// ═══════════════════════════════════════════════════════════════════════
+// Manual mode — bypass state machine
+// ═══════════════════════════════════════════════════════════════════════
+IF NOT inEnable THEN
+    IF inManEnable THEN
+        outIMP_LEV := inMan_IMP_LEV;
+        outIMP_PRA := inMan_IMP_PRA;
+        outIMP_ZAD := inMan_IMP_ZAD;
+    ELSE
+        outIMP_LEV := FALSE;
+        outIMP_PRA := FALSE;
+        outIMP_ZAD := FALSE;
+    END_IF
+    eState      := 0;
+    outTechstav := 0;
+    tImpulseHold(IN := FALSE);
+    tSwitchDone(IN := FALSE);
+    RETURN;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// Auto guard: VYHYBKY must be asserted
+// ═══════════════════════════════════════════════════════════════════════
+IF NOT inVYHYBKY THEN
+    outIMP_LEV  := FALSE;
+    outIMP_PRA  := FALSE;
+    outIMP_ZAD  := FALSE;
+    eState      := 0;
+    outTechstav := 0;
+    RETURN;
+END_IF
+
+// --- Compute required switch position ---
+// Forward (KLADNY=1): outer track (VYH=1); Reverse (OPACNY=1): inner track (VYH=0)
+bReqOuter := inKLADNY AND NOT inOPACNY;
+bLEV_Wrong := (inVYH_LEV <> bReqOuter);
+bPRA_Wrong := (inVYH_PRA <> bReqOuter);
+
+// --- L4b state machine ---
+CASE eState OF
+
+    0: // IDLE — kontrola poloh výhybek
+        outIMP_LEV := FALSE;
+        outIMP_PRA := FALSE;
+        outIMP_ZAD := FALSE;
+        tImpulseHold(IN := FALSE);
+        tSwitchDone(IN := FALSE);
+        IF bLEV_Wrong AND NOT inHRA_LEV THEN
+            eState := 1;  // Levá výhybka špatně a dráha volná
+        ELSIF NOT bLEV_Wrong AND bPRA_Wrong AND NOT inHRA_PRA THEN
+            eState := 3;  // Levá OK, pravá špatně
+        END_IF
+
+    1: // IMPULSE_C — přestavování levé výhybky
+        outIMP_LEV := TRUE;
+        tImpulseHold(IN := TRUE, PT := c_tImpulseHold);
+        IF tImpulseHold.Q THEN
+            outIMP_LEV := FALSE;
+            tImpulseHold(IN := FALSE);
+            eState := 2;
+        END_IF
+
+    2: // WAIT_C — čekání na dokončení přestavení levé výhybky
+        outIMP_LEV := FALSE;
+        tSwitchDone(IN := TRUE, PT := c_tSwitchDone);
+        IF tSwitchDone.Q THEN
+            tSwitchDone(IN := FALSE);
+            IF bPRA_Wrong AND NOT inHRA_PRA THEN
+                eState := 3;
+            ELSE
+                eState := 0;
+            END_IF
+        END_IF
+
+    3: // IMPULSE_D — přestavování pravé výhybky
+        outIMP_PRA := TRUE;
+        tImpulseHold(IN := TRUE, PT := c_tImpulseHold);
+        IF tImpulseHold.Q THEN
+            outIMP_PRA := FALSE;
+            tImpulseHold(IN := FALSE);
+            eState := 4;
+        END_IF
+
+    4: // WAIT_D — čekání na dokončení přestavení pravé výhybky
+        outIMP_PRA := FALSE;
+        tSwitchDone(IN := TRUE, PT := c_tSwitchDone);
+        IF tSwitchDone.Q THEN
+            tSwitchDone(IN := FALSE);
+            eState := 0;
+        END_IF
+
+END_CASE
+
+outTechstav := INT_TO_BYTE(eState);
+
+// -----------------------------------------------------------------------
+// FDI — TODO: implement per-drive fault detection
+// outFault := ...;
+// outFaultCode := ...;
+// -----------------------------------------------------------------------
+]]></ST>
+    </Implementation>
+    <LineIds Name="FB_SwitchRouter">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

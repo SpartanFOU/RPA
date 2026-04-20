@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<TcSmProject xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.62">
+<TcSmProject xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4026.21">
 	<ImageDatas>
 		<ImageData Id="1000">424dd6020000000000003600000028000000100000000e0000000100180000000000a0020000c40e0000c40e00000000000000000000ff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080808080808080808080808080808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080c0c0c0000000c0c0c0000000808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c000bfff00bfffc0c0c0808080c0c0c000ffffc0c0c000ffff808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c000bfff00bfffc0c0c0808080c0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c000bfff00bfffc0c0c0808080c0c0c0000000c0c0c0000000808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080c0c0c0ff0000c0c0c0ff0000808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080c0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080c0c0c0000000c0c0c0000000808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c000bfff00bfffc0c0c0808080c0c0c00000ffc0c0c00000ff808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c000bfff00bfffc0c0c0808080c0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c000bfff00bfffc0c0c0808080c0c0c0000000c0c0c0000000808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080c0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080c0c0c0008000c0c0c0008000808080ff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080c0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ff</ImageData>
 		<ImageData Id="1001">424dd6020000000000003600000028000000100000000e0000000100180000000000a0020000120b0000120b00000000000000000000ff00ffff00ffff00ffff00ffff00ffff00ff808080808080808080808080808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0000000c0c0c0000000808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c000ffffc0c0c000ffff808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0000000c0c0c0000000808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0ff0000c0c0c0ff0000808080ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffc0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ff0000ff0000ff0000ff0000ff0000ff0000ffc0c0c0000000c0c0c0000000808080ff00ffff00ffff00ffff00ffff00ff0000ff0000ff0000ff0000ff0000ff0000ffc0c0c00000ffc0c0c00000ff808080ff00ffff00ffff00ffff00ffff00ff0000ff0000ff0000ff0000ff0000ff0000ffc0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ff0000ff0000ff0000ff0000ff0000ff0000ffc0c0c0000000c0c0c0000000808080ff00ffff00ffff00ffff00ffff00ff0000ff0000ff0000ff0000ff0000ff0000ffc0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ff0000ff0000ff0000ff0000ff0000ff0000ffc0c0c0008000c0c0c0008000808080ff00ffff00ffff00ffff00ffff00ff0000ff0000ff0000ff0000ff0000ff0000ffc0c0c0c0c0c0c0c0c0c0c0c0808080ff00ffff00ffff00ffff00ffff00ff</ImageData>
@@ -27,9 +27,87 @@
 		</System>
 		<Plc>
 			<Project GUID="{E64F57E9-4212-4725-B65B-84BF6721DDF5}" Name="L1_otocny_stul" PrjFilePath="L1_otocny_stul\L1_otocny_stul.plcproj" TmcFilePath="L1_otocny_stul\L1_otocny_stul.tmc" ReloadTmc="true" AmsPort="851" FileArchiveSettings="#x000e" SymbolicMapping="true">
-				<Instance Id="#x08502000" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcPath="L1_otocny_stul\L1_otocny_stul.tmc" TmcHash="{9CFC8493-D1C6-E93E-3FE4-EEA97E2CEDF5}">
+				<Instance Id="#x08502000" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcHash="{3183B53E-5DE2-BE2B-6E22-51D7CAEEFF4B}" TmcPath="L1_otocny_stul\L1_otocny_stul.tmc">
 					<Name>L1_otocny_stul Instance</Name>
 					<CLSID ClassFactory="TcPlc30">{08500001-0000-0000-F000-000000000064}</CLSID>
+					<Vars VarGrpType="2" AreaNo="1">
+						<Name>PlcTask Outputs</Name>
+						<Var>
+							<Name>TAGS.MO</Name>
+							<Comment><![CDATA[Otočný stůl]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPB0</Name>
+							<Comment><![CDATA[Rameno nad zásobníkem]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPB1</Name>
+							<Comment><![CDATA[Rameno nad dopravníkem]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPG0</Name>
+							<Comment><![CDATA[Zasunout PG]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPG1</Name>
+							<Comment><![CDATA[Vyhodit váleček ze zásobníku (vysunout PG)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPM</Name>
+							<Comment><![CDATA[Monostabilní rozvaděč pro PM]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPS1</Name>
+							<Comment><![CDATA[Přísavka na rameni PB]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.M4DPR</Name>
+							<Comment><![CDATA[Dopravník 4 (ze zásobníku)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.M3DPR</Name>
+							<Comment><![CDATA[Dopravník 3 (nahoru)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.M5DPR</Name>
+							<Comment><![CDATA[Dopravník 5 (FESTO)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.ELMAG</Name>
+							<Comment><![CDATA[Magnet na PM]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.zarZEL</Name>
+							<Comment><![CDATA[Zelená žárovka na ovládací skříni]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.zarCER</Name>
+							<Comment><![CDATA[Červená žárovka na ovládací skříni]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.zarORA</Name>
+							<Comment><![CDATA[Oranžová žárovka na ovládací skříni]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.zarErr</Name>
+							<Comment><![CDATA[Červená chybová žárovka]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+					</Vars>
 					<Vars VarGrpType="1">
 						<Name>PlcTask Inputs</Name>
 						<Var>
@@ -123,84 +201,6 @@
 							<Type>BIT</Type>
 						</Var>
 					</Vars>
-					<Vars VarGrpType="2" AreaNo="1">
-						<Name>PlcTask Outputs</Name>
-						<Var>
-							<Name>TAGS.MO</Name>
-							<Comment><![CDATA[Otočný stůl]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPB0</Name>
-							<Comment><![CDATA[Rameno nad zásobníkem]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPB1</Name>
-							<Comment><![CDATA[Rameno nad dopravníkem]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPG0</Name>
-							<Comment><![CDATA[Zasunout PG]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPG1</Name>
-							<Comment><![CDATA[Vyhodit váleček ze zásobníku (vysunout PG)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPM</Name>
-							<Comment><![CDATA[Monostabilní rozvaděč pro PM]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPS1</Name>
-							<Comment><![CDATA[Přísavka na rameni PB]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.M4DPR</Name>
-							<Comment><![CDATA[Dopravník 4 (ze zásobníku)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.M3DPR</Name>
-							<Comment><![CDATA[Dopravník 3 (nahoru)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.M5DPR</Name>
-							<Comment><![CDATA[Dopravník 5 (FESTO)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.ELMAG</Name>
-							<Comment><![CDATA[Magnet na PM]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.zarZEL</Name>
-							<Comment><![CDATA[Zelená žárovka na ovládací skříni]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.zarCER</Name>
-							<Comment><![CDATA[Červená žárovka na ovládací skříni]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.zarORA</Name>
-							<Comment><![CDATA[Oranžová žárovka na ovládací skříni]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.zarErr</Name>
-							<Comment><![CDATA[Červená chybová žárovka]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-					</Vars>
 					<Contexts>
 						<Context>
 							<Id>0</Id>
@@ -218,9 +218,67 @@
 				</Instance>
 			</Project>
 			<Project GUID="{CD7AC29A-E5FB-40A5-B312-7576C735C67D}" Name="L5_prisavka" PrjFilePath="L5_prisavka\L5_prisavka.plcproj" TmcFilePath="L5_prisavka\L5_prisavka.tmc" ReloadTmc="true" AmsPort="852" FileArchiveSettings="#x000e" SymbolicMapping="true">
-				<Instance Id="#x08502040" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcPath="L5_prisavka\L5_prisavka.tmc" TmcHash="{1E0F0C37-E87E-9721-2374-DA21798116C0}">
+				<Instance Id="#x08502040" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcHash="{670E2AFE-A963-55C1-86E7-BB5E3F49DD1B}" TmcPath="L5_prisavka\L5_prisavka.tmc">
 					<Name>L5_prisavka Instance</Name>
 					<CLSID ClassFactory="TcPlc30">{08500001-0000-0000-F000-000000000064}</CLSID>
+					<Vars VarGrpType="2" AreaNo="1">
+						<Name>PlcTask Outputs</Name>
+						<Var>
+							<Name>TAGS.RPA0</Name>
+							<Comment><![CDATA[Lieární pneumotor nad  otočný stůl]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPA1</Name>
+							<Comment><![CDATA[Lineární pneumotor nad dopravník]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPC0</Name>
+							<Comment><![CDATA[Pneumotor s přísavkou nahoru]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPC1</Name>
+							<Comment><![CDATA[Pneumotor s přísavkou dolů]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPH</Name>
+							<Comment><![CDATA[Mini plošinka nahoru]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPS2</Name>
+							<Comment><![CDATA[Přísavka pneumotoru PC]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.M1DPR</Name>
+							<Comment><![CDATA[Čopravník číslo 1 (malý)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.M2DPR</Name>
+							<Comment><![CDATA[Dopravník číslo 2 (dlouhý)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.zarErr</Name>
+							<Comment><![CDATA[Červená chybová žárovka]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.zarOr</Name>
+							<Comment><![CDATA[Oranžová žárovka na ovládací skříni]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.Pneu48</Name>
+							<Comment><![CDATA[vstup do pneu alpha (nepoužito)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+					</Vars>
 					<Vars VarGrpType="1">
 						<Name>PlcTask Inputs</Name>
 						<Var>
@@ -334,64 +392,6 @@
 							<Type>BIT</Type>
 						</Var>
 					</Vars>
-					<Vars VarGrpType="2" AreaNo="1">
-						<Name>PlcTask Outputs</Name>
-						<Var>
-							<Name>TAGS.RPA0</Name>
-							<Comment><![CDATA[Lieární pneumotor nad  otočný stůl]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPA1</Name>
-							<Comment><![CDATA[Lineární pneumotor nad dopravník]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPC0</Name>
-							<Comment><![CDATA[Pneumotor s přísavkou nahoru]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPC1</Name>
-							<Comment><![CDATA[Pneumotor s přísavkou dolů]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPH</Name>
-							<Comment><![CDATA[Mini plošinka nahoru]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPS2</Name>
-							<Comment><![CDATA[Přísavka pneumotoru PC]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.M1DPR</Name>
-							<Comment><![CDATA[Čopravník číslo 1 (malý)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.M2DPR</Name>
-							<Comment><![CDATA[Dopravník číslo 2 (dlouhý)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.zarErr</Name>
-							<Comment><![CDATA[Červená chybová žárovka]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.zarOr</Name>
-							<Comment><![CDATA[Oranžová žárovka na ovládací skříni]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.Pneu48</Name>
-							<Comment><![CDATA[vstup do pneu alpha (nepoužito)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-					</Vars>
 					<Contexts>
 						<Context>
 							<Id>0</Id>
@@ -409,9 +409,32 @@
 				</Instance>
 			</Project>
 			<Project GUID="{011DF0F5-B422-4BFC-8B3C-38FA8A8B4D54}" Name="L6_plosina" PrjFilePath="L6_plosina\L6_plosina.plcproj" TmcFilePath="L6_plosina\L6_plosina.tmc" ReloadTmc="true" AmsPort="853" FileArchiveSettings="#x000e" SymbolicMapping="true">
-				<Instance Id="#x08502080" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcPath="L6_plosina\L6_plosina.tmc" TmcHash="{93EC52EC-69B3-8FE8-A740-38CD5941C54B}">
+				<Instance Id="#x08502080" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcHash="{5C4A8377-BB55-2614-16A8-9CFB28A0D317}" TmcPath="L6_plosina\L6_plosina.tmc">
 					<Name>L6_plosina Instance</Name>
 					<CLSID ClassFactory="TcPlc30">{08500001-0000-0000-F000-000000000064}</CLSID>
+					<Vars VarGrpType="2" AreaNo="1">
+						<Name>PlcTask Outputs</Name>
+						<Var>
+							<Name>TAGS.RPE0</Name>
+							<Comment><![CDATA[Pneumoor PE dolu]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPE1</Name>
+							<Comment><![CDATA[Pneumoor PE nahoru]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.RPD</Name>
+							<Comment><![CDATA[PD vysunut]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.ERR</Name>
+							<Comment><![CDATA[žárovka na kabelové liště (dřívre pneu 49)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+					</Vars>
 					<Vars VarGrpType="1">
 						<Name>PlcTask Inputs</Name>
 						<Var>
@@ -445,29 +468,6 @@
 							<Type>BIT</Type>
 						</Var>
 					</Vars>
-					<Vars VarGrpType="2" AreaNo="1">
-						<Name>PlcTask Outputs</Name>
-						<Var>
-							<Name>TAGS.RPE0</Name>
-							<Comment><![CDATA[Pneumoor PE dolu]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPE1</Name>
-							<Comment><![CDATA[Pneumoor PE nahoru]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.RPD</Name>
-							<Comment><![CDATA[PD vysunut]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.ERR</Name>
-							<Comment><![CDATA[žárovka na kabelové liště (dřívre pneu 49)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-					</Vars>
 					<Contexts>
 						<Context>
 							<Id>0</Id>
@@ -485,159 +485,11 @@
 				</Instance>
 			</Project>
 			<Project GUID="{FBD64E84-4D7F-407A-B3DA-86EB6410D66F}" Name="L4_kolejiste" PrjFilePath="L4_kolejiste\L4_kolejiste.plcproj" TmcFilePath="L4_kolejiste\L4_kolejiste.tmc" ReloadTmc="true" AmsPort="854" FileArchiveSettings="#x000e" SymbolicMapping="true">
-				<Instance Id="#x085020c0" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcPath="L4_kolejiste\L4_kolejiste.tmc" TmcHash="{596C4C21-E8B1-C85C-0BF2-F80FF7C77F1C}">
+				<Instance Id="#x085020c0" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcHash="{FA5AA44E-698B-5BA2-5FB7-42B4B39703C1}" TmcPath="L4_kolejiste\L4_kolejiste.tmc">
 					<Name>L4_kolejiste Instance</Name>
 					<CLSID ClassFactory="TcPlc30">{08500001-0000-0000-F000-000000000064}</CLSID>
-					<Vars VarGrpType="1">
-						<Name>PlcTask Inputs</Name>
-						<Var>
-							<Name>IO.DI0</Name>
-							<Comment><![CDATA[ Poloha levé výhybky (1 = vnější kolej)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.VYH_LEV</Name>
-							<Comment><![CDATA[ Poloha levé výhybky (1 = vnější kolej)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.VYH_PRA</Name>
-							<Comment><![CDATA[ Poloha pravé výhybky (1 = vnější kolej)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI1</Name>
-							<Comment><![CDATA[ Poloha pravé výhybky (1 = vnější kolej)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI2</Name>
-							<Comment><![CDATA[ Poloha zadní výhybky (1 = vnější kolej)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.VYH_ZAD</Name>
-							<Comment><![CDATA[ Poloha zadní výhybky (1 = vnější kolej)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI3</Name>
-							<Comment><![CDATA[ Poloha I přepínače (1 = přep. v poloze I)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.PRE_I</Name>
-							<Comment><![CDATA[ Poloha I přepínače (1 = přep. v poloze I)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.PRE_KLA</Name>
-							<Comment><![CDATA[ Poloha I přepínače (1 = přep. v poloze I)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI4</Name>
-							<Comment><![CDATA[ Poloha II přepínače (1 = přep. v poloze II)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.PRE_II</Name>
-							<Comment><![CDATA[ Poloha II přepínače (1 = přep. v poloze II)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.PRE_OPA</Name>
-							<Comment><![CDATA[ Poloha II přepínače (1 = přep. v poloze II)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI5</Name>
-							<Comment><![CDATA[ Tlačítko levé výhybky (1 = tlačítko stisknuto)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.TLA_LEV</Name>
-							<Comment><![CDATA[ Tlačítko levé výhybky (1 = tlačítko stisknuto)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI6</Name>
-							<Comment><![CDATA[ Tlačítko pravé výhybky (1 = tlačítko stisknuto)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.TLA_PRA</Name>
-							<Comment><![CDATA[ Tlačítko pravé výhybky (1 = tlačítko stisknuto)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.TLA_ZAD</Name>
-							<Comment><![CDATA[ Tlačítko zadní výhybky (1 = tlačítko stisknuto)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI7</Name>
-							<Comment><![CDATA[ Tlačítko zadní výhybky (1 = tlačítko stisknuto)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI8</Name>
-							<Comment><![CDATA[ Pravé hradlo (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.HRA_PRA</Name>
-							<Comment><![CDATA[ Pravé hradlo (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.HRA_LEV</Name>
-							<Comment><![CDATA[ Levé hradlo (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.SP1</Name>
-							<Comment><![CDATA[ Levé hradlo (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI9</Name>
-							<Comment><![CDATA[ Levé hradlo (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.HRA_ZAD</Name>
-							<Comment><![CDATA[ Zadní hradlo (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI10</Name>
-							<Comment><![CDATA[ Zadní hradlo (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.HRA_ZAV</Name>
-							<Comment><![CDATA[ Hradlo závor (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>TAGS.SP2</Name>
-							<Comment><![CDATA[ Hradlo závor (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
-							<Name>IO.DI11</Name>
-							<Comment><![CDATA[ Hradlo závor (1 = přítomno vozidlo)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-					</Vars>
 					<Vars VarGrpType="2" AreaNo="1">
 						<Name>PlcTask Outputs</Name>
-						<Var>
-							<Name>IO.DO4</Name>
-							<Comment><![CDATA[ Stahování závor (1 = závory staženy)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
 						<Var>
 							<Name>TAGS.Z</Name>
 							<Comment><![CDATA[ Stahování závor (1 = závory staženy)]]></Comment>
@@ -645,6 +497,11 @@
 						</Var>
 						<Var>
 							<Name>TAGS.ZAVORY</Name>
+							<Comment><![CDATA[ Stahování závor (1 = závory staženy)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DO4</Name>
 							<Comment><![CDATA[ Stahování závor (1 = závory staženy)]]></Comment>
 							<Type>BIT</Type>
 						</Var>
@@ -669,18 +526,13 @@
 							<Type>BIT</Type>
 						</Var>
 						<Var>
-							<Name>TAGS.IMP_LEV</Name>
-							<Comment><![CDATA[ Přestavování levé výhybky (1 = přestavit)]]></Comment>
-							<Type>BIT</Type>
-						</Var>
-						<Var>
 							<Name>IO.DO7</Name>
 							<Comment><![CDATA[ Přestavování levé výhybky (1 = přestavit)]]></Comment>
 							<Type>BIT</Type>
 						</Var>
 						<Var>
-							<Name>IO.DO8</Name>
-							<Comment><![CDATA[ Přestavování pravé výhybky (1 = přestavit)]]></Comment>
+							<Name>TAGS.IMP_LEV</Name>
+							<Comment><![CDATA[ Přestavování levé výhybky (1 = přestavit)]]></Comment>
 							<Type>BIT</Type>
 						</Var>
 						<Var>
@@ -689,8 +541,8 @@
 							<Type>BIT</Type>
 						</Var>
 						<Var>
-							<Name>TAGS.IMP_ZAD</Name>
-							<Comment><![CDATA[ Přestavování zadní výhybky (1 = přestavit)]]></Comment>
+							<Name>IO.DO8</Name>
+							<Comment><![CDATA[ Přestavování pravé výhybky (1 = přestavit)]]></Comment>
 							<Type>BIT</Type>
 						</Var>
 						<Var>
@@ -699,12 +551,17 @@
 							<Type>BIT</Type>
 						</Var>
 						<Var>
-							<Name>TAGS.VYHYBKY</Name>
-							<Comment><![CDATA[ Převzetí ovládání výhybek (1 = ovládá automat)]]></Comment>
+							<Name>TAGS.IMP_ZAD</Name>
+							<Comment><![CDATA[ Přestavování zadní výhybky (1 = přestavit)]]></Comment>
 							<Type>BIT</Type>
 						</Var>
 						<Var>
 							<Name>IO.DO10</Name>
+							<Comment><![CDATA[ Převzetí ovládání výhybek (1 = ovládá automat)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.VYHYBKY</Name>
 							<Comment><![CDATA[ Převzetí ovládání výhybek (1 = ovládá automat)]]></Comment>
 							<Type>BIT</Type>
 						</Var>
@@ -716,6 +573,149 @@
 						<Var>
 							<Name>TAGS.JIZDA</Name>
 							<Comment><![CDATA[ Převzetí ovládání jízdy (1 = ovládá automat)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+					</Vars>
+					<Vars VarGrpType="1">
+						<Name>PlcTask Inputs</Name>
+						<Var>
+							<Name>TAGS.VYH_LEV</Name>
+							<Comment><![CDATA[ Poloha levé výhybky (1 = vnější kolej)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI0</Name>
+							<Comment><![CDATA[ Poloha levé výhybky (1 = vnější kolej)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.VYH_PRA</Name>
+							<Comment><![CDATA[ Poloha pravé výhybky (1 = vnější kolej)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI1</Name>
+							<Comment><![CDATA[ Poloha pravé výhybky (1 = vnější kolej)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.VYH_ZAD</Name>
+							<Comment><![CDATA[ Poloha zadní výhybky (1 = vnější kolej)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI2</Name>
+							<Comment><![CDATA[ Poloha zadní výhybky (1 = vnější kolej)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.PRE_I</Name>
+							<Comment><![CDATA[ Poloha I přepínače (1 = přep. v poloze I)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.PRE_KLA</Name>
+							<Comment><![CDATA[ Poloha I přepínače (1 = přep. v poloze I)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI3</Name>
+							<Comment><![CDATA[ Poloha I přepínače (1 = přep. v poloze I)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.PRE_II</Name>
+							<Comment><![CDATA[ Poloha II přepínače (1 = přep. v poloze II)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI4</Name>
+							<Comment><![CDATA[ Poloha II přepínače (1 = přep. v poloze II)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.PRE_OPA</Name>
+							<Comment><![CDATA[ Poloha II přepínače (1 = přep. v poloze II)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.TLA_LEV</Name>
+							<Comment><![CDATA[ Tlačítko levé výhybky (1 = tlačítko stisknuto)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI5</Name>
+							<Comment><![CDATA[ Tlačítko levé výhybky (1 = tlačítko stisknuto)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI6</Name>
+							<Comment><![CDATA[ Tlačítko pravé výhybky (1 = tlačítko stisknuto)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.TLA_PRA</Name>
+							<Comment><![CDATA[ Tlačítko pravé výhybky (1 = tlačítko stisknuto)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.TLA_ZAD</Name>
+							<Comment><![CDATA[ Tlačítko zadní výhybky (1 = tlačítko stisknuto)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI7</Name>
+							<Comment><![CDATA[ Tlačítko zadní výhybky (1 = tlačítko stisknuto)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.HRA_PRA</Name>
+							<Comment><![CDATA[ Pravé hradlo (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI8</Name>
+							<Comment><![CDATA[ Pravé hradlo (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.HRA_LEV</Name>
+							<Comment><![CDATA[ Levé hradlo (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.SP1</Name>
+							<Comment><![CDATA[ Levé hradlo (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI9</Name>
+							<Comment><![CDATA[ Levé hradlo (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI10</Name>
+							<Comment><![CDATA[ Zadní hradlo (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.HRA_ZAD</Name>
+							<Comment><![CDATA[ Zadní hradlo (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>IO.DI11</Name>
+							<Comment><![CDATA[ Hradlo závor (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.SP2</Name>
+							<Comment><![CDATA[ Hradlo závor (1 = přítomno vozidlo)]]></Comment>
+							<Type>BIT</Type>
+						</Var>
+						<Var>
+							<Name>TAGS.HRA_ZAV</Name>
+							<Comment><![CDATA[ Hradlo závor (1 = přítomno vozidlo)]]></Comment>
 							<Type>BIT</Type>
 						</Var>
 					</Vars>
@@ -737,7 +737,7 @@
 			</Project>
 		</Plc>
 		<Io>
-			<Device Id="2" DevType="111" DevFlags="#x0003" AmsPort="28674" AmsNetId="169.254.109.136.3.1" RemoteName="Device 2 (EtherCAT)" InfoImageId="2">
+			<Device Id="2" DevType="111" DevFlags="#x0003" AmsPort="28674" AmsNetId="169.254.109.136.3.1" RemoteName="Device 2 (EtherCAT)" InfoImageId="2" SimulationMode="true">
 				<Name>Device 2 (EtherCAT)</Name>
 				<AddressInfo>
 					<Pnp>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_IO" Id="{a1b2c3d4-0003-4000-8000-000000000003}" SpecialFunc="None">
+    <Declaration><![CDATA[// Single point of I/O access.
+// Reads raw GVL_IO addresses into named outputs; writes named inputs to GVL_IO outputs.
+// All other FBs use only FB_IO ports — never GVL_IO directly.
+FUNCTION_BLOCK FB_IO
+VAR_INPUT
+    // --- Commands from logic layer (→ physical outputs) ---
+    inKLADNY    : BOOL;  // Jízda v kladném směru
+    inOPACNY    : BOOL;  // Jízda v opačném směru
+    inZAVORY    : BOOL;  // Stažení závor (1 = dolů)
+    inIMP_LEV   : BOOL;  // Impuls levé výhybky
+    inIMP_PRA   : BOOL;  // Impuls pravé výhybky
+    inIMP_ZAD   : BOOL;  // Impuls zadní výhybky
+    inVYHYBKY   : BOOL;  // PLC přebírá řízení výhybek
+    inJIZDA     : BOOL;  // PLC přebírá řízení jízdy
+END_VAR
+VAR_OUTPUT
+    // --- Sensor readings (physical inputs → logic layer) ---
+    outVYH_LEV  : BOOL;  // Poloha levé výhybky (1 = vnější kolej)
+    outVYH_PRA  : BOOL;  // Poloha pravé výhybky (1 = vnější kolej)
+    outVYH_ZAD  : BOOL;  // Poloha zadní výhybky (1 = vlečka)
+    outPRE_KLA  : BOOL;  // Přepínač směru: kladný
+    outPRE_OPA  : BOOL;  // Přepínač směru: opačný
+    outTLA_LEV  : BOOL;  // Tlačítko levé výhybky
+    outTLA_PRA  : BOOL;  // Tlačítko pravé výhybky
+    outTLA_ZAD  : BOOL;  // Tlačítko zadní výhybky
+    outHRA_PRA  : BOOL;  // Pravé hradlo (vozidlo přítomno)
+    outHRA_LEV  : BOOL;  // Levé hradlo / SP1 (vozidlo přítomno)
+    outHRA_ZAD  : BOOL;  // Zadní hradlo (vozidlo přítomno)
+    outHRA_ZAV  : BOOL;  // Hradlo závor / SP2 (vozidlo přítomno)
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// --- Read physical inputs ---
+outVYH_LEV  := IO.DI0;
+outVYH_PRA  := IO.DI1;
+outVYH_ZAD  := IO.DI2;
+outPRE_KLA  := IO.DI3;
+outPRE_OPA  := IO.DI4;
+outTLA_LEV  := IO.DI5;
+outTLA_PRA  := IO.DI6;
+outTLA_ZAD  := IO.DI7;
+outHRA_PRA  := IO.DI8;
+outHRA_LEV  := IO.DI9;
+outHRA_ZAD  := IO.DI10;
+outHRA_ZAV  := IO.DI11;
+
+// --- Write physical outputs ---
+IO.DO4  := inZAVORY;
+IO.DO5  := inKLADNY;
+IO.DO6  := inOPACNY;
+IO.DO7  := inIMP_LEV;
+IO.DO8  := inIMP_PRA;
+IO.DO9  := inIMP_ZAD;
+IO.DO10 := inVYHYBKY;
+IO.DO11 := inJIZDA;
+]]></ST>
+    </Implementation>
+    <LineIds Name="FB_IO">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
