@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
   <POU Name="MAIN" Id="{7dc3db17-2a30-41bf-9b36-69d0883b3530}" SpecialFunc="None">
     <Declaration><![CDATA[// Top-level program.
@@ -28,7 +28,7 @@ fbMachine(
     inBTN_Reset     := FALSE,
     inBTN_Stop      := FALSE,
     inBTN_Man       := FALSE,
-    inBTN_EStop     := TRUE,    // NC input — TRUE = safe. No HW wired in simulation.
+    inBTN_EStop     := True,    // NC input — TRUE = safe. No HW wired in simulation.
 
     // SCADA M-variables (%M100.x) — use these to control from TwinCAT Watch window
     inSCADA_Start   := SCADA.SCADA_START,
@@ -118,6 +118,10 @@ SCADA.techstav := SHL(BYTE_TO_WORD(fbBarrier.outTechstav), 8)
     </Implementation>
     <LineIds Name="MAIN">
       <LineId Id="9" Count="0" />
+      <LineId Id="4" Count="4" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="10" Count="89" />
+      <LineId Id="2" Count="0" />
     </LineIds>
   </POU>
 </TcPlcObject>
