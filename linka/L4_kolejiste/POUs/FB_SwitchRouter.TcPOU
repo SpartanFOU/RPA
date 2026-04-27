@@ -3,7 +3,8 @@
   <POU Name="FB_SwitchRouter" Id="{a1b2c3d4-0006-4000-8000-000000000006}" SpecialFunc="None">
     <Declaration><![CDATA[// L4b — Switch routing (výhybkový automat).
 // Aligns left (C) and right (D) double-track switches based on drive direction.
-// State machine: IDLE → IMPULSE_C → WAIT_C → [IMPULSE_D → WAIT_D →] IDLE
+// State machine: IDLE → IMPULSE_C → CHECK_C → [IMPULSE_D → CHECK_D →] IDLE
+// Impulse runs up to 1 s; stops early if position sensor confirms switch moved.
 // Runs only when inEnable = TRUE (set by FB_MachineControl).
 FUNCTION_BLOCK FB_SwitchRouter
 VAR_INPUT
@@ -28,21 +29,19 @@ VAR_OUTPUT
     outIMP_ZAD  : BOOL;  // Impuls zadní výhybky (rozšíření)
     outFault     : BOOL;
     outFaultCode : WORD;
-    outTechstav  : BYTE;  // Stav L4b: 0=IDLE,1=IMP_C,2=WAIT_C,3=IMP_D,4=WAIT_D (→ low byte MW104)
+    outTechstav  : BYTE;  // Stav L4b: 0=IDLE,1=IMP_C,2=CHECK_C,3=IMP_D,4=CHECK_D (→ low byte MW104)
 END_VAR
 VAR
     eState          : INT := 0;
-    // 0=IDLE, 1=IMPULSE_C, 2=WAIT_C, 3=IMPULSE_D, 4=WAIT_D
+    // 0=IDLE, 1=IMPULSE_C, 2=CHECK_C, 3=IMPULSE_D, 4=CHECK_D
 
     bReqOuter       : BOOL;  // Požadovaná poloha: TRUE = vnější kolej (kladný směr)
     bLEV_Wrong      : BOOL;  // Levá výhybka v nesprávné poloze
     bPRA_Wrong      : BOOL;  // Pravá výhybka v nesprávné poloze
 
-    tImpulseHold    : TON;   // Délka impulsu (≥ 150 ms)
-    tSwitchDone     : TON;   // Čekání na dokončení přestavení
+    tImpulseHold    : TON;   // Max délka impulsu (1 s)
 
-    c_tImpulseHold  : TIME := T#150MS;
-    c_tSwitchDone   : TIME := T#120MS;
+    c_tImpulseMax   : TIME := T#1000MS;
 END_VAR
 ]]></Declaration>
     <Implementation>
@@ -62,7 +61,6 @@ IF NOT inEnable THEN
     eState      := 0;
     outTechstav := 0;
     tImpulseHold(IN := FALSE);
-    tSwitchDone(IN := FALSE);
     RETURN;
 END_IF
 
@@ -92,60 +90,53 @@ CASE eState OF
         outIMP_PRA := FALSE;
         outIMP_ZAD := FALSE;
         tImpulseHold(IN := FALSE);
-        tSwitchDone(IN := FALSE);
         IF bLEV_Wrong AND NOT inHRA_LEV THEN
-            eState := 1;  // Levá výhybka špatně a dráha volná
+            eState := 1;
         ELSIF NOT bLEV_Wrong AND bPRA_Wrong AND NOT inHRA_PRA THEN
-            eState := 3;  // Levá OK, pravá špatně
+            eState := 3;
         END_IF
 
-    1: // IMPULSE_C — přestavování levé výhybky
+    1: // IMPULSE_C — impuls levé výhybky, max 1 s nebo dokud se nepřestaví
         outIMP_LEV := TRUE;
-        tImpulseHold(IN := TRUE, PT := c_tImpulseHold);
-        IF tImpulseHold.Q THEN
+        tImpulseHold(IN := TRUE, PT := c_tImpulseMax);
+        IF NOT bLEV_Wrong OR tImpulseHold.Q THEN
             outIMP_LEV := FALSE;
             tImpulseHold(IN := FALSE);
             eState := 2;
         END_IF
 
-    2: // WAIT_C — čekání na dokončení přestavení levé výhybky
+    2: // CHECK_C — ověření polohy levé výhybky po impulsu
         outIMP_LEV := FALSE;
-        tSwitchDone(IN := TRUE, PT := c_tSwitchDone);
-        IF tSwitchDone.Q THEN
-            tSwitchDone(IN := FALSE);
-            IF bPRA_Wrong AND NOT inHRA_PRA THEN
-                eState := 3;
-            ELSE
-                eState := 0;
-            END_IF
+        IF bLEV_Wrong THEN
+            outFault     := TRUE;
+            outFaultCode := 16#0001;  // Levá výhybka se nepřestavila
+        END_IF
+        IF bPRA_Wrong AND NOT inHRA_PRA THEN
+            eState := 3;
+        ELSE
+            eState := 0;
         END_IF
 
-    3: // IMPULSE_D — přestavování pravé výhybky
+    3: // IMPULSE_D — impuls pravé výhybky, max 1 s nebo dokud se nepřestaví
         outIMP_PRA := TRUE;
-        tImpulseHold(IN := TRUE, PT := c_tImpulseHold);
-        IF tImpulseHold.Q THEN
+        tImpulseHold(IN := TRUE, PT := c_tImpulseMax);
+        IF NOT bPRA_Wrong OR tImpulseHold.Q THEN
             outIMP_PRA := FALSE;
             tImpulseHold(IN := FALSE);
             eState := 4;
         END_IF
 
-    4: // WAIT_D — čekání na dokončení přestavení pravé výhybky
+    4: // CHECK_D — ověření polohy pravé výhybky po impulsu
         outIMP_PRA := FALSE;
-        tSwitchDone(IN := TRUE, PT := c_tSwitchDone);
-        IF tSwitchDone.Q THEN
-            tSwitchDone(IN := FALSE);
-            eState := 0;
+        IF bPRA_Wrong THEN
+            outFault     := TRUE;
+            outFaultCode := 16#0002;  // Pravá výhybka se nepřestavila
         END_IF
+        eState := 0;
 
 END_CASE
 
 outTechstav := INT_TO_BYTE(eState);
-
-// -----------------------------------------------------------------------
-// FDI — TODO: implement per-drive fault detection
-// outFault := ...;
-// outFaultCode := ...;
-// -----------------------------------------------------------------------
 ]]></ST>
     </Implementation>
     <LineIds Name="FB_SwitchRouter">

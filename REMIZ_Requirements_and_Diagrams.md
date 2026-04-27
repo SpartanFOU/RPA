@@ -131,9 +131,9 @@ All physical sensors and actuators. Named using the A/B/C/... actuator conventio
 | # | Requirement | Notes |
 |---|---|---|
 | C-01 | Execute L4a barrier control logic | FB_Barrier; state machine: IDLE → BLOCKED → LIFTING |
-| C-02 | Execute L4b switch routing logic | FB_SwitchRouter; state machine: IDLE → IMPULSE_x → WAIT_x |
+| C-02 | Execute L4b switch routing logic | FB_SwitchRouter; state machine: IDLE → IMPULSE_x → CHECK_x |
 | C-03 | Enforce drive mutual exclusion | KLADNY and OPACNY never simultaneously TRUE |
-| C-04 | Sequence switch impulses (one at a time) | Impulse hold ≥ 150 ms; wait for travel before next |
+| C-04 | Sequence switch impulses (one at a time) | Impulse held until position sensor confirms or 1 s timeout (`c_tImpulseMax`); set `outFaultCode` if position not reached; only one impulse active at a time |
 | C-05 | Detect voltage fault (PRE_KLA AND PRE_OPA) | Enter fault state; stop drive; flag gvFault |
 | C-06 | Assert VYHYBKY on startup | PLC takes switch control before any routing |
 | C-07 | Assert JIZDA on startup | PLC takes drive control in automated mode |
@@ -180,7 +180,7 @@ Signals as seen at **Level 1 — Field Instrumentation**, using generic actuator
 | YE | E (Rear switch) | Digital Output | Rear switch impulse solenoid | 1 = toggle (pulse) | IMP_ZAD |
 
 > **Note:** YA1 and YA0 are mutually exclusive — both TRUE simultaneously is a hardware fault condition.  
-> **Note:** YC, YD, YE are impulse outputs. They must be held HIGH for ≥ 150 ms (c_tImpulseHold) and released. Only one may be active at a time.
+> **Note:** YC, YD, YE are impulse outputs. They are held HIGH until the position sensor confirms the switch moved, or until `c_tImpulseMax` (1 s) elapses — whichever comes first. Only one may be active at a time.
 
 ### Internal PLC Control Outputs (takeover flags)
 
@@ -343,19 +343,19 @@ stateDiagram-v2
     IDLE : Check VYH_LEV and VYH_PRA\nagainst required position\n(based on KLADNY/OPACNY)
 
     IMPULSE_C : Assert IMP_LEV (YC=1)\nLeft switch impulse active
-    WAIT_C : IMP_LEV released (YC=0)\nWaiting for left switch travel
+    CHECK_C : IMP_LEV released (YC=0)\nVerify left switch position
 
     IMPULSE_D : Assert IMP_PRA (YD=1)\nRight switch impulse active
-    WAIT_D : IMP_PRA released (YD=0)\nWaiting for right switch travel
+    CHECK_D : IMP_PRA released (YD=0)\nVerify right switch position
 
     IDLE --> IMPULSE_C : VYH_LEV wrong\nAND loco NOT on left gate\n(Opt-sens-1 = 0)
-    IMPULSE_C --> WAIT_C : c_tImpulseHold elapsed (150ms)\nYC=0
-    WAIT_C --> IMPULSE_D : c_tSwitchDone elapsed (120ms)\nVYH_PRA still wrong
-    WAIT_C --> IDLE : c_tSwitchDone elapsed\nVYH_PRA already correct\n(both switches OK)
+    IMPULSE_C --> CHECK_C : VYH_LEV correct (early stop)\nOR c_tImpulseMax elapsed (1s)\nYC=0
+    CHECK_C --> IMPULSE_D : VYH_PRA still wrong\nAND loco NOT on right gate
+    CHECK_C --> IDLE : VYH_PRA correct\n(both switches OK)\nor set faultCode=0x0001 if VYH_LEV still wrong
 
     IDLE --> IMPULSE_D : VYH_LEV correct\nAND VYH_PRA wrong\nAND loco NOT on right gate\n(Opt-sens-2 = 0)
-    IMPULSE_D --> WAIT_D : c_tImpulseHold elapsed (150ms)\nYD=0
-    WAIT_D --> IDLE : c_tSwitchDone elapsed (120ms)\nCheck complete
+    IMPULSE_D --> CHECK_D : VYH_PRA correct (early stop)\nOR c_tImpulseMax elapsed (1s)\nYD=0
+    CHECK_D --> IDLE : Always\nor set faultCode=0x0002 if VYH_PRA still wrong
 
     note right of IDLE
         Forward (KLADNY=1): both VYH=1 (outer track)
@@ -398,7 +398,7 @@ MAIN (PRG)
 ├── FB_SwitchRouter              (* L4b — switch routing *)
 │   ├── Inputs:  inEnable, inKLADNY, inOPACNY, inVYH_LEV, inVYH_PRA, inHRA_LEV, inHRA_PRA
 │   ├── Outputs: outIMP_LEV, outIMP_PRA, outIMP_ZAD, outFault, outFaultCode, outTechstav
-│   └── Contains: IDLE→IMPULSE_x→WAIT_x state machine (CASE techstav_switch OF …)
+│   └── Contains: IDLE→IMPULSE_x→CHECK_x state machine (CASE techstav_switch OF …)
 │
 └── FB_DriveCtrl                 (* Loco drive — mutual exclusion + fault detection *)
     ├── Inputs:  inEnable, inKLADNY_cmd, inOPACNY_cmd, inPRE_KLA, inPRE_OPA
@@ -449,7 +449,7 @@ END_VAR
 | Byte | Bits | Meaning |
 |---|---|---|
 | High byte `%MB105` | 0–7 | L4a barrier state: 0=IDLE, 1=BLOCKED, 2=LIFTING |
-| Low byte `%MB104` | 0–7 | L4b switch state: 0=IDLE, 1=IMPULSE_C, 2=WAIT_C, 3=IMPULSE_D, 4=WAIT_D |
+| Low byte `%MB104` | 0–7 | L4b switch state: 0=IDLE, 1=IMPULSE_C, 2=CHECK_C, 3=IMPULSE_D, 4=CHECK_D |
 
 ### 4.4 `systemstav` Encoding (`%MW106`)
 
