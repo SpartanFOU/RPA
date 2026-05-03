@@ -8,18 +8,29 @@ VAR_GLOBAL
     // -----------------------------------------------------------------------
 
     // --- Řídící tlačítka (%MX100.x) ---
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_START     AT %MX100.0 : BOOL;  // Start automatické sekvence
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_RESET     AT %MX100.1 : BOOL;  // Reset poruchy, návrat do STOPPED
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_STOP      AT %MX100.2 : BOOL;  // Plynné zastavení → COMPLETING
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_MAN       AT %MX100.3 : BOOL;  // Přepnutí do manuálního režimu
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_ESTOP     AT %MX100.4 : BOOL;  // Softwarový E-STOP (SW ekvivalent HW tlač.)
 
     // --- Manuální ovládání pohonů (%MX101.x) ---
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_MAN_KLADNY    AT %MX101.0 : BOOL;  // Ruční jízda v kladném směru
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_MAN_OPACNY    AT %MX101.1 : BOOL;  // Ruční jízda v opačném směru
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_MAN_ZAVORY    AT %MX101.2 : BOOL;  // Ruční stažení závor
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_MAN_IMP_LEV   AT %MX101.3 : BOOL;  // Ruční impuls levé výhybky
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_MAN_IMP_PRA   AT %MX101.4 : BOOL;  // Ruční impuls pravé výhybky
+    {attribute 'OPC.UA.DA' := '1'}
     SCADA_MAN_IMP_ZAD   AT %MX101.5 : BOOL;  // Ruční impuls zadní výhybky
 
     // --- Stavové slovo technologické sekvence ---
@@ -27,12 +38,14 @@ VAR_GLOBAL
     //   0 = IDLE, 1 = BLOCKED, 2 = LIFTING
     // Low byte (%MB104): stav L4b (výhybkový automat)
     //   0 = IDLE, 1 = IMPULSE_C, 2 = WAIT_C, 3 = IMPULSE_D, 4 = WAIT_D
+    {attribute 'OPC.UA.DA' := '1'}
     techstav        AT %MW104 : WORD;
 
     // --- Stavové slovo systému (PackML) ---
     //   0=STOPPED, 1=STARTING, 2=RUNNING, 3=HOLDING, 4=HELD,
     //   5=RESUMING, 6=COMPLETING, 7=COMPLETE, 8=ABORTING,
     //   9=ABORTED, 10=CLEARING, 11=MANUAL, 12=SERVICE
+    {attribute 'OPC.UA.DA' := '1'}
     systemstav      AT %MW106 : WORD;
 END_VAR
 ]]></Declaration>

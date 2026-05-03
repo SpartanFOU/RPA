@@ -50,8 +50,13 @@ END_VAR
 // ═══════════════════════════════════════════════════════════════════════
 IF NOT inEnable THEN
     IF inManEnable THEN
-        outIMP_LEV := inMan_IMP_LEV;
-        outIMP_PRA := inMan_IMP_PRA;
+        IF inVYH_LEV <> inVYH_PRA THEN
+            outFault     := TRUE;
+            outFaultCode := 16#0003;  // Výhybky nejsou ve stejné poloze
+        END_IF
+        // Parallel rails: switching one side must always switch both
+        outIMP_LEV := inMan_IMP_LEV OR inMan_IMP_PRA;
+        outIMP_PRA := inMan_IMP_LEV OR inMan_IMP_PRA;
         outIMP_ZAD := inMan_IMP_ZAD;
     ELSE
         outIMP_LEV := FALSE;
@@ -74,6 +79,12 @@ IF NOT inVYHYBKY THEN
     eState      := 0;
     outTechstav := 0;
     RETURN;
+END_IF
+
+// --- Mismatch between parallel rails is always a fault ---
+IF inVYH_LEV <> inVYH_PRA THEN
+    outFault     := TRUE;
+    outFaultCode := 16#0003;  // Výhybky nejsou ve stejné poloze
 END_IF
 
 // --- Compute required switch position ---
