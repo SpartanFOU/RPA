@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
   <DUT Name="E_SystemState" Id="{a1b2c3d4-0002-4000-8000-000000000002}">
     <Declaration><![CDATA[// PackML-inspired operating state enumeration.
@@ -18,7 +18,8 @@ TYPE E_SystemState :
     ABORTED     := 9,   // Porucha; čeká na Clear od operátora
     CLEARING    := 10,  // Potvrzení poruchy, reset výstupů
     MANUAL      := 11,  // Manuální režim s antikolizní ochranou
-    SERVICE     := 12   // Servisní režim (PIN); antikolize vypnuta
+    SERVICE     := 12,
+ 	WAITING_DIR := 13   // Servisní režim (PIN); antikolize vypnuta
 ) WORD;
 END_TYPE
 ]]></Declaration>

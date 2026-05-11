@@ -3,6 +3,10 @@
   <POU Name="FB_Barrier" Id="{a1b2c3d4-0005-4000-8000-000000000005}" SpecialFunc="None">
     <Declaration><![CDATA[// L4a — Barrier (závora) control.
 // State machine: IDLE → BLOCKED → LIFTING → IDLE
+// Trigger sensor depends on direction of travel:
+//   KLADNY (forward) : lower on SP1 (HRA_LEV) rising edge, raise on SP2 (HRA_ZAV) falling edge
+//   OPACNY (reverse) : lower on SP2 (HRA_ZAV) rising edge, raise on SP1 (HRA_LEV) falling edge
+//   Unknown direction: lower on whichever sensor triggers first (safe default).
 // Runs only when inEnable = TRUE (set by FB_MachineControl).
 // In manual mode (inEnable=FALSE, inManEnable=TRUE) manual command passes through.
 FUNCTION_BLOCK FB_Barrier
@@ -10,7 +14,10 @@ VAR_INPUT
     inEnable     : BOOL;  // TRUE = auto mode active
     inManEnable  : BOOL;  // TRUE = manual mode active (from FB_MachineControl.outEnable_Man)
     inClearFault : BOOL;  // TRUE for one scan when CLEARING state entered (from MAIN rClearing.Q)
+    inSP1        : BOOL;  // Hradlo levé — vozidlo přítomno (HRA_LEV)
     inSP2        : BOOL;  // Hradlo závor — vozidlo přítomno (HRA_ZAV)
+    inKLADNY     : BOOL;  // Směr jízdy: kupředu (kladný)
+    inOPACNY     : BOOL;  // Směr jízdy: pozpátku (opačný)
     inJIZDA      : BOOL;  // PLC vlastní řízení jízdy (auto guard only)
     inMan_Zavory : BOOL;  // Manuální povel: závory dolů
 END_VAR
@@ -23,8 +30,16 @@ END_VAR
 VAR
     eState       : INT := 0;  // 0=IDLE, 1=BLOCKED, 2=LIFTING
 
+    // SP1 edges (HRA_LEV — left gate)
+    rSP1_Rise    : R_TRIG;
+    fSP1_Fall    : F_TRIG;
+
+    // SP2 edges (HRA_ZAV — barrier gate)
     rSP2_Rise    : R_TRIG;
-    rSP2_Fall    : F_TRIG;
+    fSP2_Fall    : F_TRIG;
+
+    bTriggerDown : BOOL;  // TRUE when the entry sensor for current direction fires
+    bTriggerUp   : BOOL;  // TRUE when the exit sensor for current direction clears
 
     tLiftDelay   : TON;   // Prodleva před zvednutím závor po průjezdu
 
@@ -58,9 +73,33 @@ END_IF
 outFault     := bFault_latch;
 outFaultCode := wFaultCode_hold;
 
-// Edge detection always runs
+// ═══════════════════════════════════════════════════════════════════════
+// 3. Edge detection — always runs every scan cycle
+// ═══════════════════════════════════════════════════════════════════════
+rSP1_Rise(CLK := inSP1);
+fSP1_Fall(CLK := inSP1);
 rSP2_Rise(CLK := inSP2);
-rSP2_Fall(CLK := inSP2);
+fSP2_Fall(CLK := inSP2);
+
+// ═══════════════════════════════════════════════════════════════════════
+// 4. Direction-aware trigger mapping
+//    KLADNY (forward)  : train enters via SP1, exits via SP2
+//    OPACNY (reverse)  : train enters via SP2, exits via SP1
+//    Unknown direction : lower on any trigger (fail-safe)
+// ═══════════════════════════════════════════════════════════════════════
+IF inKLADNY AND NOT inOPACNY THEN
+    // Forward: SP1 = entry sensor, SP2 = exit sensor
+    bTriggerDown := rSP1_Rise.Q;
+    bTriggerUp   := fSP2_Fall.Q;
+ELSIF inOPACNY AND NOT inKLADNY THEN
+    // Reverse: SP2 = entry sensor, SP1 = exit sensor
+    bTriggerDown := rSP2_Rise.Q;
+    bTriggerUp   := fSP1_Fall.Q;
+ELSE
+    // Unknown direction — lower on whichever sensor fires first (safe default)
+    bTriggerDown := rSP1_Rise.Q OR rSP2_Rise.Q;
+    bTriggerUp   := fSP1_Fall.Q AND fSP2_Fall.Q;  // Both must clear before raising
+END_IF
 
 // ═══════════════════════════════════════════════════════════════════════
 // Manual mode — bypass state machine, pass command directly
@@ -100,17 +139,18 @@ CASE eState OF
         outZAVORY := FALSE;
         tFDI_Down(IN := FALSE);
         tFDI_Up(IN := FALSE);
-        IF rSP2_Rise.Q THEN
+        IF bTriggerDown THEN    // Entry sensor fired → lower barriers immediately
             tFDI_Down(IN := FALSE);  // Reset before arming
             eState := 1;
         END_IF
 
     1: // BLOCKED — závory dolů, lokomotiva na přejezdu
         outZAVORY := TRUE;
-        // FDI: barriers should be physically down quickly — sensor not applicable here
-        // (no separate barrier-down sensor in this layout)
         tFDI_Down(IN := FALSE);
-        IF rSP2_Fall.Q THEN
+        IF bTriggerDown THEN    // Another entry trigger while blocked (e.g. unknown direction) — stay blocked
+            tLiftDelay(IN := FALSE);
+            eState := 1;
+        ELSIF bTriggerUp THEN   // Exit sensor cleared → start lift delay
             tLiftDelay(IN := FALSE);
             eState := 2;
         END_IF
@@ -118,8 +158,8 @@ CASE eState OF
     2: // LIFTING — lokomotiva prošla, čekáme c_tLiftDelay před zvednutím
         outZAVORY := TRUE;  // Stále dolů během prodlevy
         tLiftDelay(IN := TRUE, PT := c_tLiftDelay);
-        IF rSP2_Rise.Q THEN
-            // Další průjezd před vypršením — zpět do BLOCKED
+        IF bTriggerDown THEN
+            // Další průjezd před vypršením prodlevy — zpět do BLOCKED
             tLiftDelay(IN := FALSE);
             eState := 1;
         ELSIF tLiftDelay.Q THEN

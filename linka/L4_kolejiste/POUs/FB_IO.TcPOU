@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
   <POU Name="FB_IO" Id="{a1b2c3d4-0003-4000-8000-000000000003}" SpecialFunc="None">
     <Declaration><![CDATA[// Single point of I/O access.
@@ -15,6 +15,7 @@ VAR_INPUT
     inIMP_ZAD   : BOOL;  // Impuls zadní výhybky
     inVYHYBKY   : BOOL;  // PLC přebírá řízení výhybek
     inJIZDA     : BOOL;  // PLC přebírá řízení jízdy
+inForceJIZDA : BOOL; 
 END_VAR
 VAR_OUTPUT
     // --- Sensor readings (physical inputs → logic layer) ---
@@ -57,11 +58,15 @@ IO.DO7  := inIMP_LEV;
 IO.DO8  := inIMP_PRA;
 IO.DO9  := inIMP_ZAD;
 IO.DO10 := inVYHYBKY;
-IO.DO11 := inJIZDA;
+IO.DO11 := inJIZDA OR inForceJIZDA;  // hold JIZDA during fault
 ]]></ST>
     </Implementation>
     <LineIds Name="FB_IO">
       <LineId Id="9" Count="0" />
+      <LineId Id="4" Count="4" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="10" Count="15" />
+      <LineId Id="2" Count="0" />
     </LineIds>
   </POU>
 </TcPlcObject>

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
   <POU Name="FB_SwitchRouter" Id="{a1b2c3d4-0006-4000-8000-000000000006}" SpecialFunc="None">
     <Declaration><![CDATA[// L4b — Switch routing (výhybkový automat).
@@ -11,13 +11,12 @@ VAR_INPUT
     inEnable      : BOOL;  // TRUE = auto mode active
     inManEnable   : BOOL;  // TRUE = manual mode active
     inVYHYBKY     : BOOL;  // PLC vlastní řízení výhybek (auto guard)
-    inKLADNY      : BOOL;  // Jede v kladném směru
-    inOPACNY      : BOOL;  // Jede v opačném směru
     inVYH_LEV     : BOOL;  // Poloha levé výhybky (1 = vnější kolej)
     inVYH_PRA     : BOOL;  // Poloha pravé výhybky (1 = vnější kolej)
     inHRA_LEV     : BOOL;  // SP1 — vozidlo na levém hradle (nesmí přestavovat)
     inHRA_PRA     : BOOL;  // Vozidlo na pravém hradle (nesmí přestavovat)
-
+	inKLADNY : BOOL;
+inOPACNY : BOOL;
     inClearFault  : BOOL;  // TRUE for one scan when CLEARING state entered (from MAIN rClearing.Q)
 
     // Manual overrides
@@ -44,9 +43,22 @@ VAR
     bLEV_Wrong      : BOOL;  // Levá výhybka v nesprávné poloze
     bPRA_Wrong      : BOOL;  // Pravá výhybka v nesprávné poloze
 
-    tImpulseHold    : TON;   // Max délka impulsu (1 s)
+   tImpLEV  : TON;   // timer for left switch impulse
+tImpPRA  : TON;   // timer for right switch impulse
+tWaitL   : TON;   // settle wait after left switch
+tWaitR   : TON;   // settle wait after right switch
 
     c_tImpulseMax   : TIME := T#1000MS;
+	tMismatch: TON;
+	IN: INT;
+	PT: INT;
+	Q: INT;
+rtrigHRA_PRA : R_TRIG;  // Rising edge — train arrives at right gate
+bTargetOuter : BOOL;
+tDebounce    : TON;   // debounce delay for OPACNY direction
+bDebouncing  : BOOL;  // TRUE while debounce is active
+tPreSwitch : TON;   // delay before switching in OPACNY direction
+bPending   : BOOL;  // toggle is pending, waiting for pre-switch delay
 END_VAR
 ]]></Declaration>
     <Implementation>
@@ -69,10 +81,7 @@ outFaultCode := wFaultCode_hold;
 // ═══════════════════════════════════════════════════════════════════════
 IF NOT inEnable THEN
     IF inManEnable THEN
-        IF inVYH_LEV <> inVYH_PRA THEN
-            bFault_latch    := TRUE;
-            wFaultCode_hold := 16#0003;  // Výhybky nejsou ve stejné poloze
-        END_IF
+        
         // Parallel rails: switching one side must always switch both
         outIMP_LEV := inMan_IMP_LEV OR inMan_IMP_PRA;
         outIMP_PRA := inMan_IMP_LEV OR inMan_IMP_PRA;
@@ -84,7 +93,10 @@ IF NOT inEnable THEN
     END_IF
     eState      := 0;
     outTechstav := 0;
-    tImpulseHold(IN := FALSE);
+    tImpLEV(IN := FALSE);
+tImpPRA(IN := FALSE);
+tWaitL(IN := FALSE);
+tWaitR(IN := FALSE);
     RETURN;
 END_IF
 
@@ -100,69 +112,79 @@ IF NOT inVYHYBKY THEN
     RETURN;
 END_IF
 
-// --- Mismatch between parallel rails is always a fault ---
-IF inVYH_LEV <> inVYH_PRA THEN
+tMismatch(IN := (inVYH_LEV <> inVYH_PRA), PT := T#200MS);
+IF tMismatch.Q THEN
     bFault_latch    := TRUE;
-    wFaultCode_hold := 16#0003;  // Výhybky nejsou ve stejné poloze
+    wFaultCode_hold := 16#0003;
 END_IF
 
 // --- Compute required switch position ---
 // Forward (KLADNY=1): outer track (VYH=1); Reverse (OPACNY=1): inner track (VYH=0)
-bReqOuter := inKLADNY AND NOT inOPACNY;
+rtrigHRA_PRA(CLK := inHRA_PRA);
+
+IF inKLADNY THEN
+    // Forward — trigger immediately, no debounce needed
+    IF rtrigHRA_PRA.Q THEN
+        bTargetOuter := NOT bTargetOuter;
+    END_IF
+    tDebounce(IN := FALSE);
+    bDebouncing := FALSE;
+
+ELSIF inOPACNY THEN
+    IF rtrigHRA_PRA.Q AND NOT bDebouncing AND NOT bPending THEN
+        bPending    := TRUE;   // arm the pre-switch delay
+        bDebouncing := TRUE;
+    END_IF
+
+    // Pre-switch delay — wait before actually toggling
+    tPreSwitch(IN := bPending, PT := T#1000MS);  // adjust to carriage clearance time
+    IF tPreSwitch.Q THEN
+        bTargetOuter := NOT bTargetOuter;  // NOW toggle
+        bPending     := FALSE;
+        tPreSwitch(IN := FALSE);
+    END_IF
+
+    // Debounce — ignore further edges until whole train has passed
+    tDebounce(IN := bDebouncing, PT := T#2000MS);
+    IF tDebounce.Q THEN
+        tDebounce(IN := FALSE);
+        bDebouncing := FALSE;
+    END_IF
+END_IF
+bReqOuter  := bTargetOuter;
 bLEV_Wrong := (inVYH_LEV <> bReqOuter);
 bPRA_Wrong := (inVYH_PRA <> bReqOuter);
 
 // --- L4b state machine ---
 CASE eState OF
 
-    0: // IDLE — kontrola poloh výhybek
+   0: // IDLE
+    outIMP_LEV := FALSE;
+    outIMP_PRA := FALSE;
+    tImpLEV(IN := FALSE);
+    tWaitL(IN := FALSE);
+    IF bLEV_Wrong AND NOT inHRA_LEV THEN
+        eState := 1;
+    END_IF
+
+    
+1: // IMPULSE — fire both at once
+    outIMP_LEV := TRUE;
+    outIMP_PRA := TRUE;
+    tImpLEV(IN := TRUE, PT := c_tImpulseMax);
+    IF (NOT bLEV_Wrong AND NOT bPRA_Wrong) OR tImpLEV.Q THEN
         outIMP_LEV := FALSE;
         outIMP_PRA := FALSE;
-        outIMP_ZAD := FALSE;
-        tImpulseHold(IN := FALSE);
-        IF bLEV_Wrong AND NOT inHRA_LEV THEN
-            eState := 1;
-        ELSIF NOT bLEV_Wrong AND bPRA_Wrong AND NOT inHRA_PRA THEN
-            eState := 3;
-        END_IF
+        tImpLEV(IN := FALSE);
+        eState := 2;
+    END_IF
 
-    1: // IMPULSE_C — impuls levé výhybky, max 1 s nebo dokud se nepřestaví
-        outIMP_LEV := TRUE;
-        tImpulseHold(IN := TRUE, PT := c_tImpulseMax);
-        IF NOT bLEV_Wrong OR tImpulseHold.Q THEN
-            outIMP_LEV := FALSE;
-            tImpulseHold(IN := FALSE);
-            eState := 2;
-        END_IF
-
-    2: // CHECK_C — ověření polohy levé výhybky po impulsu
-        outIMP_LEV := FALSE;
-        IF bLEV_Wrong THEN
-            bFault_latch    := TRUE;
-            wFaultCode_hold := 16#0001;  // Levá výhybka se nepřestavila
-        END_IF
-        IF bPRA_Wrong AND NOT inHRA_PRA THEN
-            eState := 3;
-        ELSE
-            eState := 0;
-        END_IF
-
-    3: // IMPULSE_D — impuls pravé výhybky, max 1 s nebo dokud se nepřestaví
-        outIMP_PRA := TRUE;
-        tImpulseHold(IN := TRUE, PT := c_tImpulseMax);
-        IF NOT bPRA_Wrong OR tImpulseHold.Q THEN
-            outIMP_PRA := FALSE;
-            tImpulseHold(IN := FALSE);
-            eState := 4;
-        END_IF
-
-    4: // CHECK_D — ověření polohy pravé výhybky po impulsu
-        outIMP_PRA := FALSE;
-        IF bPRA_Wrong THEN
-            bFault_latch    := TRUE;
-            wFaultCode_hold := 16#0002;  // Pravá výhybka se nepřestavila
-        END_IF
+2: // WAIT settle
+    tWaitL(IN := TRUE, PT := T#50MS);
+    IF tWaitL.Q THEN
+        tWaitL(IN := FALSE);
         eState := 0;
+    END_IF
 
 END_CASE
 
@@ -171,6 +193,27 @@ outTechstav := INT_TO_BYTE(eState);
     </Implementation>
     <LineIds Name="FB_SwitchRouter">
       <LineId Id="9" Count="0" />
+      <LineId Id="4" Count="4" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="10" Count="11" />
+      <LineId Id="25" Count="11" />
+      <LineId Id="332" Count="2" />
+      <LineId Id="37" Count="15" />
+      <LineId Id="214" Count="3" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="58" Count="2" />
+      <LineId Id="271" Count="0" />
+      <LineId Id="273" Count="3" />
+      <LineId Id="63" Count="4" />
+      <LineId Id="435" Count="19" />
+      <LineId Id="352" Count="14" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="125" Count="3" />
+      <LineId Id="277" Count="0" />
+      <LineId Id="104" Count="15" />
+      <LineId Id="374" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="375" Count="0" />
     </LineIds>
   </POU>
 </TcPlcObject>

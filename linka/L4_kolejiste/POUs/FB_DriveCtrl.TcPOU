@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
   <POU Name="FB_DriveCtrl" Id="{a1b2c3d4-0007-4000-8000-000000000007}" SpecialFunc="None">
     <Declaration><![CDATA[// Locomotive drive control.
@@ -63,10 +63,12 @@ outgvFault   := (wFaultCode_hold = c_FAULT_VOLTAGE) AND bFault_latch;
 // ═══════════════════════════════════════════════════════════════════════
 // 4. If fault active — de-energise drive immediately
 // ═══════════════════════════════════════════════════════════════════════
+// In FB_DriveCtrl, at the top of the fault branch:
 IF bFault_latch THEN
+	outJIZDA  := TRUE; 
     outKLADNY := FALSE;
     outOPACNY := FALSE;
-    outJIZDA  := FALSE;
+      // ← PLC holds control, but commands stop
     RETURN;
 END_IF
 
@@ -110,6 +112,14 @@ outJIZDA  := TRUE;
     </Implementation>
     <LineIds Name="FB_DriveCtrl">
       <LineId Id="9" Count="0" />
+      <LineId Id="4" Count="4" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="10" Count="20" />
+      <LineId Id="107" Count="1" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="109" Count="3" />
+      <LineId Id="36" Count="37" />
+      <LineId Id="2" Count="0" />
     </LineIds>
   </POU>
 </TcPlcObject>

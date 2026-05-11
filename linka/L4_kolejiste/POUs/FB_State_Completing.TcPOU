@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_State_Completing" Id="{b1000007-0007-4000-8000-000000000007}" SpecialFunc="None">
+    <Declaration><![CDATA[// State handler: COMPLETING
+// Waits for a short delay then signals → COMPLETE.
+FUNCTION_BLOCK FB_State_Completing
+VAR_INPUT
+    bExecute    : BOOL;
+END_VAR
+VAR_OUTPUT
+    outCmd          : E_StateCmd := E_StateCmd.NONE;
+    outEnable_Auto  : BOOL;
+    outEnable_Man   : BOOL;
+    outServiceMode  : BOOL;
+    outgvFault      : BOOL;
+    outInit_VYHYBKY : BOOL;
+    outInit_IMP_LEV : BOOL;
+    outInit_IMP_PRA : BOOL;
+END_VAR
+VAR
+    tDelay          : TON;
+    c_tCompleteDelay : TIME := T#500MS;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bExecute THEN
+    // Reset timer when leaving state
+    outCmd          := E_StateCmd.NONE;
+    outEnable_Auto  := FALSE;
+    outEnable_Man   := FALSE;
+    outServiceMode  := FALSE;
+    outgvFault      := FALSE;
+    outInit_VYHYBKY := FALSE;
+    outInit_IMP_LEV := FALSE;
+    outInit_IMP_PRA := FALSE;
+    tDelay(IN       := FALSE);
+    RETURN;
+END_IF
+
+outEnable_Auto  := FALSE;
+outEnable_Man   := FALSE;
+outServiceMode  := FALSE;
+outgvFault      := FALSE;
+outInit_VYHYBKY := FALSE;
+outInit_IMP_LEV := FALSE;
+outInit_IMP_PRA := FALSE;
+
+tDelay(IN := TRUE, PT := c_tCompleteDelay);
+
+IF tDelay.Q THEN
+    tDelay(IN := FALSE);
+    outCmd := E_StateCmd.TO_COMPLETE;
+ELSE
+    outCmd := E_StateCmd.NONE;
+END_IF
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

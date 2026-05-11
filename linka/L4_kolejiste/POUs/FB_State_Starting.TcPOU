@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_State_Starting" Id="{b1000002-0002-4000-8000-000000000002}" SpecialFunc="None">
+    <Declaration><![CDATA[// State handler: STARTING
+// Asserts VYHYBKY, aligns switches if misaligned (one impulse at a time),
+// then signals done → MachineControl transitions to RUNNING.
+// outEnable_Auto (JIZDA) stays FALSE the entire time.
+FUNCTION_BLOCK FB_State_Starting
+VAR_INPUT
+    bExecute    : BOOL;   // TRUE while this state is active
+    inVYH_LEV   : BOOL;   // Left  switch position  (TRUE = outer)
+    inVYH_PRA   : BOOL;   // Right switch position  (TRUE = outer)
+END_VAR
+VAR_OUTPUT
+    outCmd          : E_StateCmd := E_StateCmd.NONE;
+    outEnable_Auto  : BOOL;
+    outEnable_Man   : BOOL;
+    outServiceMode  : BOOL;
+    outgvFault      : BOOL;
+    outInit_VYHYBKY : BOOL;
+    outInit_IMP_LEV : BOOL;
+    outInit_IMP_PRA : BOOL;
+END_VAR
+VAR
+    eStep           : INT;          // 0=check 1=pulse_LEV 2=wait_LEV 3=pulse_PRA 4=wait_PRA 5=done
+    tImpulse        : TON;          // Impulse hold timer
+    tWait           : TON;          // Post-impulse switch travel wait
+    c_tImpulseHold  : TIME := T#150MS;
+    c_tSwitchDone   : TIME := T#120MS;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bExecute THEN
+    // Reset everything when leaving this state
+    outCmd          := E_StateCmd.NONE;
+    outEnable_Auto  := FALSE;
+    outEnable_Man   := FALSE;
+    outServiceMode  := FALSE;
+    outgvFault      := FALSE;
+    outInit_VYHYBKY := FALSE;
+    outInit_IMP_LEV := FALSE;
+    outInit_IMP_PRA := FALSE;
+    eStep           := 0;
+    tImpulse(IN     := FALSE);
+    tWait(IN        := FALSE);
+    RETURN;
+END_IF
+
+// Static outputs for STARTING
+outEnable_Auto  := FALSE;
+outEnable_Man   := FALSE;
+outServiceMode  := FALSE;
+outgvFault      := FALSE;
+outInit_VYHYBKY := TRUE;   // Assert switch control immediately
+outCmd          := E_StateCmd.NONE;
+
+CASE eStep OF
+
+    0: // Check alignment
+        outInit_IMP_LEV := FALSE;
+        outInit_IMP_PRA := FALSE;
+        tImpulse(IN     := FALSE);
+        tWait(IN        := FALSE);
+        IF inVYH_LEV = inVYH_PRA THEN
+            eStep := 5;          // Already aligned
+        ELSIF inVYH_LEV THEN
+            eStep := 1;          // LEV = outer → pulse LEV inner
+        ELSE
+            eStep := 3;          // PRA = outer → pulse PRA inner
+        END_IF
+
+    1: // Pulse LEV — hold impulse for c_tImpulseHold
+        outInit_IMP_LEV := TRUE;
+        outInit_IMP_PRA := FALSE;
+        tImpulse(IN := TRUE, PT := c_tImpulseHold);
+        IF tImpulse.Q THEN
+            outInit_IMP_LEV := FALSE;
+            tImpulse(IN     := FALSE);
+            eStep           := 2;
+        END_IF
+
+    2: // Wait for LEV switch travel
+        outInit_IMP_LEV := FALSE;
+        outInit_IMP_PRA := FALSE;
+        tWait(IN := TRUE, PT := c_tSwitchDone);
+        IF tWait.Q THEN
+            tWait(IN := FALSE);
+            eStep    := 5;
+        END_IF
+
+    3: // Pulse PRA — hold impulse for c_tImpulseHold
+        outInit_IMP_LEV := FALSE;
+        outInit_IMP_PRA := TRUE;
+        tImpulse(IN := TRUE, PT := c_tImpulseHold);
+        IF tImpulse.Q THEN
+            outInit_IMP_PRA := FALSE;
+            tImpulse(IN     := FALSE);
+            eStep           := 4;
+        END_IF
+
+    4: // Wait for PRA switch travel
+        outInit_IMP_LEV := FALSE;
+        outInit_IMP_PRA := FALSE;
+        tWait(IN := TRUE, PT := c_tSwitchDone);
+        IF tWait.Q THEN
+            tWait(IN := FALSE);
+            eStep    := 5;
+        END_IF
+
+    5: // Alignment done — signal MachineControl to proceed
+        outInit_IMP_LEV := FALSE;
+        outInit_IMP_PRA := FALSE;
+        outCmd          := E_StateCmd.TO_RUNNING;
+
+END_CASE
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

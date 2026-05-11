@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_State_Running" Id="{b1000003-0003-4000-8000-000000000003}" SpecialFunc="None">
+    <Declaration><![CDATA[// State handler: RUNNING
+// Auto sequence enabled. STOP edge → COMPLETING. MAN edge → HOLDING.
+FUNCTION_BLOCK FB_State_Running
+VAR_INPUT
+    bExecute    : BOOL;
+    bStop       : BOOL;   // Edge from MachineControl
+    bMan        : BOOL;   // Edge from MachineControl
+END_VAR
+VAR_OUTPUT
+    outCmd          : E_StateCmd := E_StateCmd.NONE;
+    outEnable_Auto  : BOOL;
+    outEnable_Man   : BOOL;
+    outServiceMode  : BOOL;
+    outgvFault      : BOOL;
+    outInit_VYHYBKY : BOOL;
+    outInit_IMP_LEV : BOOL;
+    outInit_IMP_PRA : BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bExecute THEN
+    outCmd          := E_StateCmd.NONE;
+    outEnable_Auto  := FALSE;
+    outEnable_Man   := FALSE;
+    outServiceMode  := FALSE;
+    outgvFault      := FALSE;
+    outInit_VYHYBKY := FALSE;
+    outInit_IMP_LEV := FALSE;
+    outInit_IMP_PRA := FALSE;
+    RETURN;
+END_IF
+
+outEnable_Auto  := TRUE;
+outEnable_Man   := FALSE;
+outServiceMode  := FALSE;
+outgvFault      := FALSE;
+outInit_VYHYBKY := FALSE;
+outInit_IMP_LEV := FALSE;
+outInit_IMP_PRA := FALSE;
+
+IF bStop THEN
+    outCmd := E_StateCmd.TO_COMPLETING;
+ELSIF bMan THEN
+    outCmd := E_StateCmd.TO_HOLDING;
+ELSE
+    outCmd := E_StateCmd.NONE;
+END_IF
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

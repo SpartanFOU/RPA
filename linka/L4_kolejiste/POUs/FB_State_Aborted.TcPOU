@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_State_Aborted" Id="{b100000A-000A-4000-8000-00000000000A}" SpecialFunc="None">
+    <Declaration><![CDATA[// State handler: ABORTED
+// Holds fault flag. Waits for RESET edge AND E-STOP safe → CLEARING.
+FUNCTION_BLOCK FB_State_Aborted
+VAR_INPUT
+    bExecute        : BOOL;
+    bReset          : BOOL;   // Edge from MachineControl
+    bEStop_Safe     : BOOL;   // TRUE = no E-STOP active
+END_VAR
+VAR_OUTPUT
+    outCmd          : E_StateCmd := E_StateCmd.NONE;
+    outEnable_Auto  : BOOL;
+    outEnable_Man   : BOOL;
+    outServiceMode  : BOOL;
+    outgvFault      : BOOL;
+    outInit_VYHYBKY : BOOL;
+    outInit_IMP_LEV : BOOL;
+    outInit_IMP_PRA : BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bExecute THEN
+    outCmd          := E_StateCmd.NONE;
+    outEnable_Auto  := FALSE;
+    outEnable_Man   := FALSE;
+    outServiceMode  := FALSE;
+    outgvFault      := FALSE;
+    outInit_VYHYBKY := FALSE;
+    outInit_IMP_LEV := FALSE;
+    outInit_IMP_PRA := FALSE;
+    RETURN;
+END_IF
+
+outEnable_Auto  := FALSE;
+outEnable_Man   := FALSE;
+outServiceMode  := FALSE;
+outgvFault      := TRUE;   // Keep fault flag active while aborted
+outInit_VYHYBKY := FALSE;
+outInit_IMP_LEV := FALSE;
+outInit_IMP_PRA := FALSE;
+
+IF bReset AND bEStop_Safe THEN
+    outCmd := E_StateCmd.TO_CLEARING;
+ELSE
+    outCmd := E_StateCmd.NONE;
+END_IF
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

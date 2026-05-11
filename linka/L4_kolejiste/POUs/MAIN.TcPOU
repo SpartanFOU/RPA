@@ -14,10 +14,37 @@ VAR
 
     // One-scan pulse when CLEARING state is entered — clears fault latches
     rClearing       : R_TRIG;
+	inVYH_LEV: BOOL;
+	inVYH_PRA: BOOL;
+	inPRE_KLA: BOOL;
+	inPRE_OPA: BOOL;
+	inIMP_LEV: BOOL;
+	inIMP_PRA: BOOL;
+	inVYHYBKY: BOOL;
+	sStateText : STRING(20);
+
 END_VAR
 ]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// ═══════════════════════════════════════════════════════════════════════
+      <ST><![CDATA[
+CASE fbMachine.outState OF
+    E_SystemState.STOPPED:      sStateText := 'STOPPED';
+    E_SystemState.STARTING:     sStateText := 'STARTING';
+    E_SystemState.RUNNING:      sStateText := 'RUNNING';
+    E_SystemState.HOLDING:      sStateText := 'HOLDING';
+    E_SystemState.HELD:         sStateText := 'HELD';
+    E_SystemState.RESUMING:     sStateText := 'RESUMING';
+    E_SystemState.COMPLETING:   sStateText := 'COMPLETING';
+    E_SystemState.COMPLETE:     sStateText := 'COMPLETE';
+    E_SystemState.ABORTING:     sStateText := 'ABORTING';
+    E_SystemState.ABORTED:      sStateText := 'ABORTED';
+    E_SystemState.CLEARING:     sStateText := 'CLEARING';
+    E_SystemState.MANUAL:       sStateText := 'MANUAL';
+    E_SystemState.SERVICE:      sStateText := 'SERVICE';
+    E_SystemState.WAITING_DIR:  sStateText := 'WAITING_DIR';
+    ELSE                        sStateText := 'UNKNOWN';
+END_CASE
+// ═══════════════════════════════════════════════════════════════════════
 // 1. Machine control — runs first so enable signals are valid this scan
 // ═══════════════════════════════════════════════════════════════════════
 fbMachine(
@@ -41,7 +68,12 @@ fbMachine(
 
     inFault_Barrier := fbBarrier.outFault,
     inFault_Switch  := fbSwitchRouter.outFault,
-    inFault_Drive   := fbDrive.outFault
+    inFault_Drive   := fbDrive.outFault,
+	
+	inVYH_LEV       := fbIO.outVYH_LEV,
+    inVYH_PRA       := fbIO.outVYH_PRA,
+    inPRE_KLA       := fbIO.outPRE_KLA,
+    inPRE_OPA       := fbIO.outPRE_OPA,
 );
 
 // Detect entry into CLEARING state → one-scan pulse to clear fault latches
@@ -54,11 +86,12 @@ fbIO(
     inKLADNY    := fbDrive.outKLADNY,
     inOPACNY    := fbDrive.outOPACNY,
     inZAVORY    := fbBarrier.outZAVORY,
-    inIMP_LEV   := fbSwitchRouter.outIMP_LEV,
-    inIMP_PRA   := fbSwitchRouter.outIMP_PRA,
+    inIMP_LEV   := fbSwitchRouter.outIMP_LEV OR fbMachine.outInit_IMP_LEV,
+    inIMP_PRA   := fbSwitchRouter.outIMP_PRA OR fbMachine.outInit_IMP_PRA,
+    inVYHYBKY   := fbMachine.outEnable_Auto OR fbMachine.outEnable_Man OR fbMachine.outInit_VYHYBKY,
     inIMP_ZAD   := fbSwitchRouter.outIMP_ZAD,
-    inVYHYBKY   := fbMachine.outEnable_Auto OR fbMachine.outEnable_Man,
-    inJIZDA     := fbDrive.outJIZDA
+    inJIZDA     := fbDrive.outJIZDA,
+	inForceJIZDA := fbMachine.outgvFault 
 );
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -68,8 +101,8 @@ fbDrive(
     inEnable        := fbMachine.outEnable_Auto OR fbMachine.outEnable_Man,
     inClearFault    := rClearing.Q,
     // Auto: direction from operator direction switch (PRE_KLA / PRE_OPA)
-    inKLADNY_cmd    := fbIO.outPRE_KLA AND fbMachine.outEnable_Auto,
-    inOPACNY_cmd    := fbIO.outPRE_OPA AND fbMachine.outEnable_Auto,
+     inKLADNY_cmd    := fbIO.outPRE_KLA AND fbMachine.outEnable_Auto AND NOT fbMachine.outgvFault,
+    inOPACNY_cmd    := fbIO.outPRE_OPA AND fbMachine.outEnable_Auto AND NOT fbMachine.outgvFault,
     inPRE_KLA       := fbIO.outPRE_KLA,
     inPRE_OPA       := fbIO.outPRE_OPA,
     // Manual: SCADA M101.0 / M101.1
@@ -84,9 +117,11 @@ fbBarrier(
     inEnable        := fbMachine.outEnable_Auto,
     inManEnable     := fbMachine.outEnable_Man,
     inClearFault    := rClearing.Q,
+    inSP1           := fbIO.outHRA_LEV,      // ← NEW
     inSP2           := fbIO.outHRA_ZAV,
+    inKLADNY        := fbDrive.outKLADNY,    // ← NEW
+    inOPACNY        := fbDrive.outOPACNY,    // ← NEW
     inJIZDA         := fbDrive.outJIZDA,
-    // Manual: SCADA M101.2
     inMan_Zavory    := SCADA.SCADA_MAN_ZAVORY AND fbMachine.outEnable_Man
 );
 
@@ -98,8 +133,8 @@ fbSwitchRouter(
     inManEnable     := fbMachine.outEnable_Man,
     inClearFault    := rClearing.Q,
     inVYHYBKY       := fbMachine.outEnable_Auto OR fbMachine.outEnable_Man,
-    inKLADNY        := fbDrive.outKLADNY,
-    inOPACNY        := fbDrive.outOPACNY,
+	inKLADNY := fbDrive.outKLADNY,
+inOPACNY := fbDrive.outOPACNY,
     inVYH_LEV       := fbIO.outVYH_LEV,
     inVYH_PRA       := fbIO.outVYH_PRA,
     inHRA_LEV       := fbIO.outHRA_LEV,
@@ -119,11 +154,31 @@ SCADA.techstav := SHL(BYTE_TO_WORD(fbBarrier.outTechstav), 8)
 ]]></ST>
     </Implementation>
     <LineIds Name="MAIN">
+      <LineId Id="145" Count="0" />
+      <LineId Id="147" Count="15" />
+      <LineId Id="146" Count="0" />
       <LineId Id="9" Count="0" />
       <LineId Id="4" Count="4" />
       <LineId Id="100" Count="0" />
-      <LineId Id="10" Count="89" />
+      <LineId Id="10" Count="17" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="119" Count="2" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="28" Count="11" />
+      <LineId Id="131" Count="1" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="45" Count="5" />
+      <LineId Id="167" Count="4" />
+      <LineId Id="56" Count="9" />
+      <LineId Id="135" Count="9" />
+      <LineId Id="74" Count="9" />
+      <LineId Id="133" Count="1" />
+      <LineId Id="86" Count="13" />
       <LineId Id="2" Count="0" />
+      <LineId Id="101" Count="1" />
     </LineIds>
   </POU>
 </TcPlcObject>

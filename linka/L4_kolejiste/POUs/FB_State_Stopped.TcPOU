@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <POU Name="FB_State_Stopped" Id="{b1000001-0001-4000-8000-000000000001}" SpecialFunc="None">
+    <Declaration><![CDATA[// State handler: STOPPED
+// Waits for START (→ STARTING) or MAN edge (→ MANUAL).
+// MachineControl decides the actual transition based on outCmd.
+FUNCTION_BLOCK FB_State_Stopped
+VAR_INPUT
+    bExecute    : BOOL;   // TRUE while this state is active
+    bStart      : BOOL;   // Combined HW+SCADA start (edge already detected by MachineControl)
+    bMan        : BOOL;   // Combined HW+SCADA man   (edge already detected by MachineControl)
+END_VAR
+VAR_OUTPUT
+    outCmd      : E_StateCmd := E_StateCmd.NONE;  // Transition command to MachineControl
+    // Enable outputs — all FALSE in STOPPED
+    outEnable_Auto  : BOOL;
+    outEnable_Man   : BOOL;
+    outServiceMode  : BOOL;
+    outgvFault      : BOOL;
+    outInit_VYHYBKY : BOOL;
+    outInit_IMP_LEV : BOOL;
+    outInit_IMP_PRA : BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bExecute THEN
+    // Reset outputs when not active
+    outCmd          := E_StateCmd.NONE;
+    outEnable_Auto  := FALSE;
+    outEnable_Man   := FALSE;
+    outServiceMode  := FALSE;
+    outgvFault      := FALSE;
+    outInit_VYHYBKY := FALSE;
+    outInit_IMP_LEV := FALSE;
+    outInit_IMP_PRA := FALSE;
+    RETURN;
+END_IF
+
+// Set outputs for STOPPED state
+outEnable_Auto  := FALSE;
+outEnable_Man   := FALSE;
+outServiceMode  := FALSE;
+outgvFault      := FALSE;
+outInit_VYHYBKY := FALSE;
+outInit_IMP_LEV := FALSE;
+outInit_IMP_PRA := FALSE;
+
+// Evaluate transitions
+IF bStart THEN
+    outCmd := E_StateCmd.TO_STARTING;
+ELSIF bMan THEN
+    outCmd := E_StateCmd.TO_MANUAL;
+ELSE
+    outCmd := E_StateCmd.NONE;
+END_IF
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

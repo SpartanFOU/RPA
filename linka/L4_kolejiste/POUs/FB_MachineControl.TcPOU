@@ -1,41 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
   <POU Name="FB_MachineControl" Id="{a1b2c3d4-0004-4000-8000-000000000004}" SpecialFunc="None">
-    <Declaration><![CDATA[// Shared machine controller — one instance per module.
-// Owns: PackML state machine, operating modes (AUTO/MANUAL/SERVICE),
-//       E-STOP handling, START/RESET/STOP edge detection, service PIN.
-// Child FBs (FB_Barrier, FB_SwitchRouter, FB_DriveCtrl) receive enable
-// signals from here and know nothing about modes or buttons.
+    <Declaration><![CDATA[// Machine controller — PackML state router.
+// Responsibilities:
+//   - Combine HW + SCADA inputs and detect edges.
+//   - Handle E-STOP and child FB faults (highest priority, interrupt any state).
+//   - Call the active state FB each cycle (bExecute := TRUE).
+//   - Read outCmd from the active state FB and perform the transition.
+//   - Forward outputs (enables, init signals) from the active state FB.
+//
+// Each state FB owns:
+//   - Its own logic, timers, sub-machines.
+//   - Resetting its internals when bExecute goes FALSE.
+//   - Deciding WHEN to transition (via outCmd).
+// MachineControl decides IF the transition is allowed and updates eState.
 FUNCTION_BLOCK FB_MachineControl
 VAR_INPUT
     // --- HW buttons (TRUE = pressed) ---
-    inBTN_Start     : BOOL;  // Tlačítko START
-    inBTN_Reset     : BOOL;  // Tlačítko RESET
-    inBTN_Stop      : BOOL;  // Tlačítko STOP
-    inBTN_Man       : BOOL;  // Tlačítko MAN (přepnutí manuálního režimu)
-    inBTN_EStop     : BOOL;  // E-STOP NC — TRUE = bezpečný stav, FALSE = E-STOP aktivní
+    inBTN_Start     : BOOL;
+    inBTN_Reset     : BOOL;
+    inBTN_Stop      : BOOL;
+    inBTN_Man       : BOOL;
+    inBTN_EStop     : BOOL;   // NC — TRUE = safe, FALSE = E-STOP active
 
     // --- SCADA equivalents — OR'd with HW internally ---
-    inSCADA_Start   : BOOL;  // %M100.0
-    inSCADA_Reset   : BOOL;  // %M100.1
-    inSCADA_Stop    : BOOL;  // %M100.2
-    inSCADA_Man     : BOOL;  // %M100.3
-    inSCADA_EStop   : BOOL;  // %M100.4 (active HIGH — SW E-STOP aktivní, když TRUE)
+    inSCADA_Start   : BOOL;   // %M100.0
+    inSCADA_Reset   : BOOL;   // %M100.1
+    inSCADA_Stop    : BOOL;   // %M100.2
+    inSCADA_Man     : BOOL;   // %M100.3
+    inSCADA_EStop   : BOOL;   // %M100.4 (active HIGH)
 
     // --- Service PIN ---
-    inServicePin    : INT;   // 4místný PIN; porovnáno s c_ServicePin
+    inServicePin    : INT;    // 4-digit PIN; compared inside FB_State_Manual
 
     // --- Fault flags from child FBs ---
     inFault_Barrier : BOOL;
     inFault_Switch  : BOOL;
     inFault_Drive   : BOOL;
+
+    // --- Sensor feedback for STARTING init ---
+    inVYH_LEV       : BOOL;
+    inVYH_PRA       : BOOL;
+    inPRE_KLA       : BOOL;
+    inPRE_OPA       : BOOL;
 END_VAR
 VAR_OUTPUT
-    outEnable_Auto  : BOOL;          // TRUE → child FBs vykonávají auto sekvenci
-    outEnable_Man   : BOOL;          // TRUE → manuální povely jsou propouštěny
-    outServiceMode  : BOOL;          // TRUE → antikolizní ochrana vypnuta
-    outState        : E_SystemState; // Aktuální stav (PackML enum)
-    outgvFault      : BOOL;          // Globální příznak poruchy
+    outEnable_Auto  : BOOL;
+    outEnable_Man   : BOOL;
+    outServiceMode  : BOOL;
+    outState        : E_SystemState;
+    outgvFault      : BOOL;
+    outInit_VYHYBKY : BOOL;
+    outInit_IMP_LEV : BOOL;
+    outInit_IMP_PRA : BOOL;
 END_VAR
 VAR
     eState          : E_SystemState := E_SystemState.STOPPED;
@@ -45,31 +62,39 @@ VAR
     rReset          : R_TRIG;
     rStop           : R_TRIG;
     rMan            : R_TRIG;
-    rEStop          : F_TRIG;   // NC — sestupná hrana = E-STOP aktivní
+    rEStop          : F_TRIG;   // NC — falling edge = E-STOP active
 
     // Combined HW OR SCADA signals
     bStart          : BOOL;
     bReset          : BOOL;
     bStop           : BOOL;
     bMan            : BOOL;
-    bEStop_Safe     : BOOL;     // TRUE = bezpečný stav (žádný E-STOP)
+    bEStop_Safe     : BOOL;
 
-    // Service mode
-    tServiceTimeout : TON;
+    // State FB instances
+    fbStopped       : FB_State_Stopped;
+    fbStarting      : FB_State_Starting;
+    fbRunning       : FB_State_Running;
+    fbHolding       : FB_State_Holding;
+    fbHeld          : FB_State_Held;
+    fbResuming      : FB_State_Resuming;
+    fbCompleting    : FB_State_Completing;
+    fbComplete      : FB_State_Complete;
+    fbAborting      : FB_State_Aborting;
+    fbAborted       : FB_State_Aborted;
+    fbClearing      : FB_State_Clearing;
+    fbManual        : FB_State_Manual;
+    fbService       : FB_State_Service;
 
-    // STARTING init helpers
-    bInitDone       : BOOL;
-    tStartDelay     : TON;      // Krátká prodleva pro inicializaci při simulaci
-
-    // COMPLETING helpers
-    bCompleteDone   : BOOL;
-    tCompleteDelay  : TON;
-
-    // Constants
-    c_ServicePin        : INT  := 1234;
-    c_tServiceTimeout   : TIME := T#5M;
-    c_tStartDelay       : TIME := T#200MS;   // Simulační init prodleva
-    c_tCompleteDelay    : TIME := T#500MS;   // Čas pro bezpečné zastavení
+    // Active state FB output mirror
+    eCmd            : E_StateCmd;
+    bActiveEnable_Auto  : BOOL;
+    bActiveEnable_Man   : BOOL;
+    bActiveServiceMode  : BOOL;
+    bActiveGvFault      : BOOL;
+    bActiveVYHYBKY      : BOOL;
+    bActiveIMP_LEV      : BOOL;
+    bActiveIMP_PRA      : BOOL;
 END_VAR
 ]]></Declaration>
     <Implementation>
@@ -81,7 +106,7 @@ bReset      := inBTN_Reset OR inSCADA_Reset;
 bStop       := inBTN_Stop  OR inSCADA_Stop;
 bMan        := inBTN_Man   OR inSCADA_Man;
 
-// E-STOP: NC hardware button (FALSE = pressed) OR SW SCADA bit (TRUE = active)
+// E-STOP: NC hardware (FALSE = pressed) OR SW SCADA bit (TRUE = active)
 bEStop_Safe := inBTN_EStop AND NOT inSCADA_EStop;
 
 // Edge triggers
@@ -89,21 +114,19 @@ rStart(CLK := bStart);
 rReset(CLK := bReset);
 rStop(CLK  := bStop);
 rMan(CLK   := bMan);
-rEStop(CLK := bEStop_Safe);   // F_TRIG: Q=TRUE on falling edge (safe → unsafe)
+rEStop(CLK := bEStop_Safe);   // F_TRIG: Q=TRUE when safe→unsafe
 
 // ═══════════════════════════════════════════════════════════════════════
-// 2. E-STOP — highest priority, from ANY state except ABORTED
+// 2. E-STOP — highest priority, interrupts any state except ABORTED/ABORTING
 // ═══════════════════════════════════════════════════════════════════════
 IF (rEStop.Q OR NOT bEStop_Safe)
     AND eState <> E_SystemState.ABORTED
     AND eState <> E_SystemState.ABORTING THEN
-    eState        := E_SystemState.ABORTING;
-    bInitDone     := FALSE;
-    bCompleteDone := FALSE;
+    eState := E_SystemState.ABORTING;
 END_IF
 
 // ═══════════════════════════════════════════════════════════════════════
-// 3. Child FB fault → ABORTING (only from active states)
+// 3. Child FB fault → ABORTING (only from active operational states)
 // ═══════════════════════════════════════════════════════════════════════
 IF (inFault_Barrier OR inFault_Switch OR inFault_Drive)
     AND (eState = E_SystemState.RUNNING
@@ -111,180 +134,236 @@ IF (inFault_Barrier OR inFault_Switch OR inFault_Drive)
       OR eState = E_SystemState.HELD
       OR eState = E_SystemState.MANUAL
       OR eState = E_SystemState.SERVICE) THEN
-    eState        := E_SystemState.ABORTING;
-    bInitDone     := FALSE;
-    bCompleteDone := FALSE;
+    eState := E_SystemState.ABORTING;
 END_IF
 
 // ═══════════════════════════════════════════════════════════════════════
-// 4. PackML state machine
+// 4. Call state FBs — active one gets bExecute=TRUE, all others FALSE
+//    Read outCmd and apply transition. Forward outputs.
 // ═══════════════════════════════════════════════════════════════════════
+fbStopped(
+    bExecute := (eState = E_SystemState.STOPPED),
+    bStart   := rStart.Q,
+    bMan     := rMan.Q
+);
+fbStarting(
+    bExecute  := (eState = E_SystemState.STARTING),
+    inVYH_LEV := inVYH_LEV,
+    inVYH_PRA := inVYH_PRA
+);
+fbRunning(
+    bExecute := (eState = E_SystemState.RUNNING),
+    bStop    := rStop.Q,
+    bMan     := rMan.Q
+);
+fbHolding(
+    bExecute := (eState = E_SystemState.HOLDING)
+);
+fbHeld(
+    bExecute := (eState = E_SystemState.HELD),
+    bStart   := rStart.Q,
+    bMan     := rMan.Q
+);
+fbResuming(
+    bExecute := (eState = E_SystemState.RESUMING)
+);
+fbCompleting(
+    bExecute := (eState = E_SystemState.COMPLETING)
+);
+fbComplete(
+    bExecute := (eState = E_SystemState.COMPLETE),
+    bReset   := rReset.Q
+);
+fbAborting(
+    bExecute := (eState = E_SystemState.ABORTING)
+);
+fbAborted(
+    bExecute    := (eState = E_SystemState.ABORTED),
+    bReset      := rReset.Q,
+    bEStop_Safe := bEStop_Safe
+);
+fbClearing(
+    bExecute := (eState = E_SystemState.CLEARING)
+);
+fbManual(
+    bExecute     := (eState = E_SystemState.MANUAL),
+    bStop        := rStop.Q,
+    inServicePin := inServicePin
+);
+fbService(
+    bExecute := (eState = E_SystemState.SERVICE),
+    bStop    := rStop.Q
+);
+
+// ── Read active state FB outputs ────────────────────────────────────
 CASE eState OF
-
-    // ── STOPPED ─────────────────────────────────────────────────────────
     E_SystemState.STOPPED:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        IF rStart.Q THEN
-            bInitDone := FALSE;
-            tStartDelay(IN := FALSE);
-            eState := E_SystemState.STARTING;
-        ELSIF rMan.Q THEN
-            eState := E_SystemState.MANUAL;
-        END_IF
+        eCmd                := fbStopped.outCmd;
+        bActiveEnable_Auto  := fbStopped.outEnable_Auto;
+        bActiveEnable_Man   := fbStopped.outEnable_Man;
+        bActiveServiceMode  := fbStopped.outServiceMode;
+        bActiveGvFault      := fbStopped.outgvFault;
+        bActiveVYHYBKY      := fbStopped.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbStopped.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbStopped.outInit_IMP_PRA;
 
-    // ── STARTING ─────────────────────────────────────────────────────────
-    // Reads initial switch positions, asserts VYHYBKY, validates direction.
-    // Short delay used in simulation; on real HW wait for init FB.
     E_SystemState.STARTING:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        tStartDelay(IN := TRUE, PT := c_tStartDelay);
-        IF tStartDelay.Q THEN
-            tStartDelay(IN := FALSE);
-            bInitDone := TRUE;
-            eState    := E_SystemState.RUNNING;
-        END_IF
+        eCmd                := fbStarting.outCmd;
+        bActiveEnable_Auto  := fbStarting.outEnable_Auto;
+        bActiveEnable_Man   := fbStarting.outEnable_Man;
+        bActiveServiceMode  := fbStarting.outServiceMode;
+        bActiveGvFault      := fbStarting.outgvFault;
+        bActiveVYHYBKY      := fbStarting.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbStarting.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbStarting.outInit_IMP_PRA;
 
-    // ── RUNNING ──────────────────────────────────────────────────────────
     E_SystemState.RUNNING:
-        outEnable_Auto := TRUE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        IF rStop.Q THEN
-            bCompleteDone := FALSE;
-            tCompleteDelay(IN := FALSE);
-            eState := E_SystemState.COMPLETING;
-        ELSIF rMan.Q THEN
-            eState := E_SystemState.HOLDING;
-        END_IF
+        eCmd                := fbRunning.outCmd;
+        bActiveEnable_Auto  := fbRunning.outEnable_Auto;
+        bActiveEnable_Man   := fbRunning.outEnable_Man;
+        bActiveServiceMode  := fbRunning.outServiceMode;
+        bActiveGvFault      := fbRunning.outgvFault;
+        bActiveVYHYBKY      := fbRunning.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbRunning.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbRunning.outInit_IMP_PRA;
 
-    // ── HOLDING ──────────────────────────────────────────────────────────
-    // Stops drive; barriers and switches remain under PLC control.
     E_SystemState.HOLDING:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        // Drive stop is handled by FB_DriveCtrl seeing inEnable=FALSE
-        eState := E_SystemState.HELD;
+        eCmd                := fbHolding.outCmd;
+        bActiveEnable_Auto  := fbHolding.outEnable_Auto;
+        bActiveEnable_Man   := fbHolding.outEnable_Man;
+        bActiveServiceMode  := fbHolding.outServiceMode;
+        bActiveGvFault      := fbHolding.outgvFault;
+        bActiveVYHYBKY      := fbHolding.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbHolding.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbHolding.outInit_IMP_PRA;
 
-    // ── HELD ─────────────────────────────────────────────────────────────
     E_SystemState.HELD:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        IF rStart.Q THEN
-            eState := E_SystemState.RESUMING;
-        ELSIF rMan.Q THEN
-            eState := E_SystemState.MANUAL;
-        END_IF
+        eCmd                := fbHeld.outCmd;
+        bActiveEnable_Auto  := fbHeld.outEnable_Auto;
+        bActiveEnable_Man   := fbHeld.outEnable_Man;
+        bActiveServiceMode  := fbHeld.outServiceMode;
+        bActiveGvFault      := fbHeld.outgvFault;
+        bActiveVYHYBKY      := fbHeld.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbHeld.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbHeld.outInit_IMP_PRA;
 
-    // ── RESUMING ─────────────────────────────────────────────────────────
     E_SystemState.RESUMING:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        // Re-engage child FBs immediately; drive direction comes from PRE_KLA/OPA
-        eState := E_SystemState.RUNNING;
+        eCmd                := fbResuming.outCmd;
+        bActiveEnable_Auto  := fbResuming.outEnable_Auto;
+        bActiveEnable_Man   := fbResuming.outEnable_Man;
+        bActiveServiceMode  := fbResuming.outServiceMode;
+        bActiveGvFault      := fbResuming.outgvFault;
+        bActiveVYHYBKY      := fbResuming.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbResuming.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbResuming.outInit_IMP_PRA;
 
-    // ── COMPLETING ───────────────────────────────────────────────────────
-    // Graceful stop: barriers rise, VYHYBKY/JIZDA released after delay.
     E_SystemState.COMPLETING:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        tCompleteDelay(IN := TRUE, PT := c_tCompleteDelay);
-        IF tCompleteDelay.Q THEN
-            tCompleteDelay(IN := FALSE);
-            bCompleteDone := TRUE;
-            eState        := E_SystemState.COMPLETE;
-        END_IF
+        eCmd                := fbCompleting.outCmd;
+        bActiveEnable_Auto  := fbCompleting.outEnable_Auto;
+        bActiveEnable_Man   := fbCompleting.outEnable_Man;
+        bActiveServiceMode  := fbCompleting.outServiceMode;
+        bActiveGvFault      := fbCompleting.outgvFault;
+        bActiveVYHYBKY      := fbCompleting.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbCompleting.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbCompleting.outInit_IMP_PRA;
 
-    // ── COMPLETE ─────────────────────────────────────────────────────────
     E_SystemState.COMPLETE:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        IF rReset.Q THEN
-            eState := E_SystemState.STOPPED;
-        END_IF
+        eCmd                := fbComplete.outCmd;
+        bActiveEnable_Auto  := fbComplete.outEnable_Auto;
+        bActiveEnable_Man   := fbComplete.outEnable_Man;
+        bActiveServiceMode  := fbComplete.outServiceMode;
+        bActiveGvFault      := fbComplete.outgvFault;
+        bActiveVYHYBKY      := fbComplete.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbComplete.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbComplete.outInit_IMP_PRA;
 
-    // ── ABORTING ─────────────────────────────────────────────────────────
-    // Immediate de-energise. Outputs forced off by FB_DriveCtrl/FB_Barrier
-    // seeing inEnable=FALSE. Transitions in one scan.
     E_SystemState.ABORTING:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := TRUE;
-        eState         := E_SystemState.ABORTED;
+        eCmd                := fbAborting.outCmd;
+        bActiveEnable_Auto  := fbAborting.outEnable_Auto;
+        bActiveEnable_Man   := fbAborting.outEnable_Man;
+        bActiveServiceMode  := fbAborting.outServiceMode;
+        bActiveGvFault      := fbAborting.outgvFault;
+        bActiveVYHYBKY      := fbAborting.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbAborting.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbAborting.outInit_IMP_PRA;
 
-    // ── ABORTED ──────────────────────────────────────────────────────────
     E_SystemState.ABORTED:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := TRUE;
-        // Require E-STOP to be released AND RESET pressed
-        IF rReset.Q AND bEStop_Safe THEN
-            eState := E_SystemState.CLEARING;
-        END_IF
+        eCmd                := fbAborted.outCmd;
+        bActiveEnable_Auto  := fbAborted.outEnable_Auto;
+        bActiveEnable_Man   := fbAborted.outEnable_Man;
+        bActiveServiceMode  := fbAborted.outServiceMode;
+        bActiveGvFault      := fbAborted.outgvFault;
+        bActiveVYHYBKY      := fbAborted.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbAborted.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbAborted.outInit_IMP_PRA;
 
-    // ── CLEARING ─────────────────────────────────────────────────────────
     E_SystemState.CLEARING:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := FALSE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        eState         := E_SystemState.STOPPED;
+        eCmd                := fbClearing.outCmd;
+        bActiveEnable_Auto  := fbClearing.outEnable_Auto;
+        bActiveEnable_Man   := fbClearing.outEnable_Man;
+        bActiveServiceMode  := fbClearing.outServiceMode;
+        bActiveGvFault      := fbClearing.outgvFault;
+        bActiveVYHYBKY      := fbClearing.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbClearing.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbClearing.outInit_IMP_PRA;
 
-    // ── MANUAL ───────────────────────────────────────────────────────────
     E_SystemState.MANUAL:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := TRUE;
-        outServiceMode := FALSE;
-        outgvFault     := FALSE;
-        IF rStart.Q THEN
-            eState := E_SystemState.STOPPED;
-        ELSIF (inServicePin = c_ServicePin) AND (inServicePin <> 0) THEN
-            tServiceTimeout(IN := FALSE);
-            eState := E_SystemState.SERVICE;
-        END_IF
+        eCmd                := fbManual.outCmd;
+        bActiveEnable_Auto  := fbManual.outEnable_Auto;
+        bActiveEnable_Man   := fbManual.outEnable_Man;
+        bActiveServiceMode  := fbManual.outServiceMode;
+        bActiveGvFault      := fbManual.outgvFault;
+        bActiveVYHYBKY      := fbManual.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbManual.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbManual.outInit_IMP_PRA;
 
-    // ── SERVICE ──────────────────────────────────────────────────────────
-    // Anti-collision bypassed. Auto-exits after c_tServiceTimeout.
     E_SystemState.SERVICE:
-        outEnable_Auto := FALSE;
-        outEnable_Man  := TRUE;
-        outServiceMode := TRUE;
-        outgvFault     := FALSE;
-        tServiceTimeout(IN := TRUE, PT := c_tServiceTimeout);
-        IF tServiceTimeout.Q OR rStop.Q THEN
-            tServiceTimeout(IN := FALSE);
-            eState := E_SystemState.MANUAL;
-        END_IF
+        eCmd                := fbService.outCmd;
+        bActiveEnable_Auto  := fbService.outEnable_Auto;
+        bActiveEnable_Man   := fbService.outEnable_Man;
+        bActiveServiceMode  := fbService.outServiceMode;
+        bActiveGvFault      := fbService.outgvFault;
+        bActiveVYHYBKY      := fbService.outInit_VYHYBKY;
+        bActiveIMP_LEV      := fbService.outInit_IMP_LEV;
+        bActiveIMP_PRA      := fbService.outInit_IMP_PRA;
 
 END_CASE
 
+// ── Apply transition from active state FB ───────────────────────────
+CASE eCmd OF
+    E_StateCmd.TO_STOPPED:      eState := E_SystemState.STOPPED;
+    E_StateCmd.TO_STARTING:     eState := E_SystemState.STARTING;
+    E_StateCmd.TO_RUNNING:      eState := E_SystemState.RUNNING;
+    E_StateCmd.TO_HOLDING:      eState := E_SystemState.HOLDING;
+    E_StateCmd.TO_HELD:         eState := E_SystemState.HELD;
+    E_StateCmd.TO_RESUMING:     eState := E_SystemState.RESUMING;
+    E_StateCmd.TO_COMPLETING:   eState := E_SystemState.COMPLETING;
+    E_StateCmd.TO_COMPLETE:     eState := E_SystemState.COMPLETE;
+    E_StateCmd.TO_ABORTING:     eState := E_SystemState.ABORTING;
+    E_StateCmd.TO_ABORTED:      eState := E_SystemState.ABORTED;
+    E_StateCmd.TO_CLEARING:     eState := E_SystemState.CLEARING;
+    E_StateCmd.TO_MANUAL:       eState := E_SystemState.MANUAL;
+    E_StateCmd.TO_SERVICE:      eState := E_SystemState.SERVICE;
+    // E_StateCmd.NONE: no change
+END_CASE
+
 // ═══════════════════════════════════════════════════════════════════════
-// 5. Publish state to output and SCADA word (%MW106)
+// 5. Forward active state outputs
 // ═══════════════════════════════════════════════════════════════════════
-outState         := eState;
-SCADA.systemstav := TO_WORD(eState);
+outEnable_Auto  := bActiveEnable_Auto;
+outEnable_Man   := bActiveEnable_Man;
+outServiceMode  := bActiveServiceMode;
+outgvFault      := bActiveGvFault;
+outInit_VYHYBKY := bActiveVYHYBKY;
+outInit_IMP_LEV := bActiveIMP_LEV;
+outInit_IMP_PRA := bActiveIMP_PRA;
+
+// ═══════════════════════════════════════════════════════════════════════
+// 6. Publish state
+// ═══════════════════════════════════════════════════════════════════════
+outState             := eState;
+SCADA.systemstav     := TO_WORD(eState);
 ]]></ST>
     </Implementation>
-    <LineIds Name="FB_MachineControl">
-      <LineId Id="9" Count="0" />
-    </LineIds>
   </POU>
 </TcPlcObject>

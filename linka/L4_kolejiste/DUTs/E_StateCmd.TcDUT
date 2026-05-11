@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.13">
+  <DUT Name="E_StateCmd" Id="{c1000001-0001-4000-8000-000000000001}">
+    <Declaration><![CDATA[// Commands returned by state FBs to FB_MachineControl.
+// MachineControl reads outCmd each cycle and performs the transition.
+{attribute 'qualified_only'}
+TYPE E_StateCmd :
+(
+    NONE            := 0,   // Stay in current state
+    TO_STOPPED      := 1,
+    TO_STARTING     := 2,
+    TO_RUNNING      := 3,
+    TO_HOLDING      := 4,
+    TO_HELD         := 5,
+    TO_RESUMING     := 6,
+    TO_COMPLETING   := 7,
+    TO_COMPLETE     := 8,
+    TO_ABORTING     := 9,
+    TO_ABORTED      := 10,
+    TO_CLEARING     := 11,
+    TO_MANUAL       := 12,
+    TO_SERVICE      := 13
+);
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>
