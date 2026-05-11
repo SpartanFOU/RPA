@@ -18,6 +18,8 @@ VAR_INPUT
     inHRA_LEV     : BOOL;  // SP1 — vozidlo na levém hradle (nesmí přestavovat)
     inHRA_PRA     : BOOL;  // Vozidlo na pravém hradle (nesmí přestavovat)
 
+    inClearFault  : BOOL;  // TRUE for one scan when CLEARING state entered (from MAIN rClearing.Q)
+
     // Manual overrides
     inMan_IMP_LEV : BOOL;
     inMan_IMP_PRA : BOOL;
@@ -35,6 +37,9 @@ VAR
     eState          : INT := 0;
     // 0=IDLE, 1=IMPULSE_C, 2=CHECK_C, 3=IMPULSE_D, 4=CHECK_D
 
+    bFault_latch    : BOOL;   // Latch: porucha drží až do CLEARING
+    wFaultCode_hold : WORD;   // Uložení kódu poruchy po latch
+
     bReqOuter       : BOOL;  // Požadovaná poloha: TRUE = vnější kolej (kladný směr)
     bLEV_Wrong      : BOOL;  // Levá výhybka v nesprávné poloze
     bPRA_Wrong      : BOOL;  // Pravá výhybka v nesprávné poloze
@@ -46,13 +51,27 @@ END_VAR
 ]]></Declaration>
     <Implementation>
       <ST><![CDATA[// ═══════════════════════════════════════════════════════════════════════
-// Manual mode — bypass state machine
+// 1. Clear fault latch when CLEARING state reached
+// ═══════════════════════════════════════════════════════════════════════
+IF inClearFault THEN
+    bFault_latch    := FALSE;
+    wFaultCode_hold := 0;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2. Publish latched fault to outputs
+// ═══════════════════════════════════════════════════════════════════════
+outFault     := bFault_latch;
+outFaultCode := wFaultCode_hold;
+
+// ═══════════════════════════════════════════════════════════════════════
+// 3. Manual mode — bypass state machine
 // ═══════════════════════════════════════════════════════════════════════
 IF NOT inEnable THEN
     IF inManEnable THEN
         IF inVYH_LEV <> inVYH_PRA THEN
-            outFault     := TRUE;
-            outFaultCode := 16#0003;  // Výhybky nejsou ve stejné poloze
+            bFault_latch    := TRUE;
+            wFaultCode_hold := 16#0003;  // Výhybky nejsou ve stejné poloze
         END_IF
         // Parallel rails: switching one side must always switch both
         outIMP_LEV := inMan_IMP_LEV OR inMan_IMP_PRA;
@@ -83,8 +102,8 @@ END_IF
 
 // --- Mismatch between parallel rails is always a fault ---
 IF inVYH_LEV <> inVYH_PRA THEN
-    outFault     := TRUE;
-    outFaultCode := 16#0003;  // Výhybky nejsou ve stejné poloze
+    bFault_latch    := TRUE;
+    wFaultCode_hold := 16#0003;  // Výhybky nejsou ve stejné poloze
 END_IF
 
 // --- Compute required switch position ---
@@ -119,8 +138,8 @@ CASE eState OF
     2: // CHECK_C — ověření polohy levé výhybky po impulsu
         outIMP_LEV := FALSE;
         IF bLEV_Wrong THEN
-            outFault     := TRUE;
-            outFaultCode := 16#0001;  // Levá výhybka se nepřestavila
+            bFault_latch    := TRUE;
+            wFaultCode_hold := 16#0001;  // Levá výhybka se nepřestavila
         END_IF
         IF bPRA_Wrong AND NOT inHRA_PRA THEN
             eState := 3;
@@ -140,8 +159,8 @@ CASE eState OF
     4: // CHECK_D — ověření polohy pravé výhybky po impulsu
         outIMP_PRA := FALSE;
         IF bPRA_Wrong THEN
-            outFault     := TRUE;
-            outFaultCode := 16#0002;  // Pravá výhybka se nepřestavila
+            bFault_latch    := TRUE;
+            wFaultCode_hold := 16#0002;  // Pravá výhybka se nepřestavila
         END_IF
         eState := 0;
 

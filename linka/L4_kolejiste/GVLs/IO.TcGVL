@@ -5,7 +5,7 @@
 VAR_GLOBAL
 	DI0 AT %IX0.0: BOOL;	// Poloha levé výhybky (1 = vnější kolej)
 	DI1 AT %IX0.1: BOOL;	// Poloha pravé výhybky (1 = vnější kolej)
-	DI2 AT %IX0.2: BOOL;	// Poloha zadní výhybky (1 = vnější kolej)
+	DI2 AT %IX0.2: BOOL;	// Poloha zadní výhybky (1 = vlečka)
 	DI3 AT %IX0.3: BOOL;	// Poloha I přepínače (1 = přep. v poloze I)
 	DI4 AT %IX0.4: BOOL;	// Poloha II přepínače (1 = přep. v poloze II)
 	DI5 AT %IX0.5: BOOL;	// Tlačítko levé výhybky (1 = tlačítko stisknuto)

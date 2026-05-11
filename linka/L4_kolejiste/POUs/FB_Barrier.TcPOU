@@ -7,11 +7,12 @@
 // In manual mode (inEnable=FALSE, inManEnable=TRUE) manual command passes through.
 FUNCTION_BLOCK FB_Barrier
 VAR_INPUT
-    inEnable    : BOOL;  // TRUE = auto mode active
-    inManEnable : BOOL;  // TRUE = manual mode active (from FB_MachineControl.outEnable_Man)
-    inSP2       : BOOL;  // Hradlo závor — vozidlo přítomno (HRA_ZAV)
-    inJIZDA     : BOOL;  // PLC vlastní řízení jízdy (auto guard only)
-    inMan_Zavory : BOOL; // Manuální povel: závory dolů
+    inEnable     : BOOL;  // TRUE = auto mode active
+    inManEnable  : BOOL;  // TRUE = manual mode active (from FB_MachineControl.outEnable_Man)
+    inClearFault : BOOL;  // TRUE for one scan when CLEARING state entered (from MAIN rClearing.Q)
+    inSP2        : BOOL;  // Hradlo závor — vozidlo přítomno (HRA_ZAV)
+    inJIZDA      : BOOL;  // PLC vlastní řízení jízdy (auto guard only)
+    inMan_Zavory : BOOL;  // Manuální povel: závory dolů
 END_VAR
 VAR_OUTPUT
     outZAVORY    : BOOL;  // Závory dolů (1 = staženo)
@@ -28,9 +29,10 @@ VAR
     tLiftDelay   : TON;   // Prodleva před zvednutím závor po průjezdu
 
     // FDI
-    tFDI_Down    : TON;   // Max. čas pro stažení závor
-    tFDI_Up      : TON;   // Max. čas pro zvednutí závor
-    bFault_latch : BOOL;  // Latch poruchy
+    tFDI_Down       : TON;   // Max. čas pro stažení závor
+    tFDI_Up         : TON;   // Max. čas pro zvednutí závor
+    bFault_latch    : BOOL;  // Latch poruchy
+    wFaultCode_hold : WORD;  // Uložení kódu poruchy po latch
 
     // Constants
     c_tLiftDelay    : TIME := T#500MS;
@@ -42,7 +44,21 @@ VAR
 END_VAR
 ]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// Edge detection always runs
+      <ST><![CDATA[// ═══════════════════════════════════════════════════════════════════════
+// 1. Clear fault latch when CLEARING state reached
+// ═══════════════════════════════════════════════════════════════════════
+IF inClearFault THEN
+    bFault_latch    := FALSE;
+    wFaultCode_hold := 0;
+END_IF
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2. Publish latched fault to outputs
+// ═══════════════════════════════════════════════════════════════════════
+outFault     := bFault_latch;
+outFaultCode := wFaultCode_hold;
+
+// Edge detection always runs
 rSP2_Rise(CLK := inSP2);
 rSP2_Fall(CLK := inSP2);
 
@@ -115,16 +131,7 @@ CASE eState OF
 END_CASE
 
 outTechstav := INT_TO_BYTE(eState);
-
-// ═══════════════════════════════════════════════════════════════════════
-// FDI — fault latch (cleared only by FB_MachineControl CLEARING state)
-// ═══════════════════════════════════════════════════════════════════════
-// (No dedicated position feedback sensor for barriers in this layout.
-//  FDI extended here for future sensor addition.)
-IF NOT bFault_latch THEN
-    outFault     := FALSE;
-    outFaultCode := 0;
-END_IF
+// (No dedicated barrier position sensor in this layout — FDI codes 0x0101/0x0102 reserved for future use.)
 ]]></ST>
     </Implementation>
     <LineIds Name="FB_Barrier">

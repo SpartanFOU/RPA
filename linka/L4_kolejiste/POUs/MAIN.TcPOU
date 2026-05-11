@@ -83,6 +83,7 @@ fbDrive(
 fbBarrier(
     inEnable        := fbMachine.outEnable_Auto,
     inManEnable     := fbMachine.outEnable_Man,
+    inClearFault    := rClearing.Q,
     inSP2           := fbIO.outHRA_ZAV,
     inJIZDA         := fbDrive.outJIZDA,
     // Manual: SCADA M101.2
@@ -95,6 +96,7 @@ fbBarrier(
 fbSwitchRouter(
     inEnable        := fbMachine.outEnable_Auto,
     inManEnable     := fbMachine.outEnable_Man,
+    inClearFault    := rClearing.Q,
     inVYHYBKY       := fbMachine.outEnable_Auto OR fbMachine.outEnable_Man,
     inKLADNY        := fbDrive.outKLADNY,
     inOPACNY        := fbDrive.outOPACNY,
@@ -102,10 +104,10 @@ fbSwitchRouter(
     inVYH_PRA       := fbIO.outVYH_PRA,
     inHRA_LEV       := fbIO.outHRA_LEV,
     inHRA_PRA       := fbIO.outHRA_PRA,
-    // Manual: SCADA M101.3 / M101.4 / M101.5
-    inMan_IMP_LEV   := SCADA.SCADA_MAN_IMP_LEV AND fbMachine.outEnable_Man,
-    inMan_IMP_PRA   := SCADA.SCADA_MAN_IMP_PRA AND fbMachine.outEnable_Man,
-    inMan_IMP_ZAD   := SCADA.SCADA_MAN_IMP_ZAD AND fbMachine.outEnable_Man
+    // Manual: SCADA M101.3/4/5 OR hardware push-buttons TLA_LEV/PRA/ZAD
+    inMan_IMP_LEV   := (SCADA.SCADA_MAN_IMP_LEV OR fbIO.outTLA_LEV) AND fbMachine.outEnable_Man,
+    inMan_IMP_PRA   := (SCADA.SCADA_MAN_IMP_PRA OR fbIO.outTLA_PRA) AND fbMachine.outEnable_Man,
+    inMan_IMP_ZAD   := (SCADA.SCADA_MAN_IMP_ZAD OR fbIO.outTLA_ZAD) AND fbMachine.outEnable_Man
 );
 
 // ═══════════════════════════════════════════════════════════════════════

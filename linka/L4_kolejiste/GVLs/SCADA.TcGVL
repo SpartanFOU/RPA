@@ -37,7 +37,7 @@ VAR_GLOBAL
     // High byte (%MB105): stav L4a (závorový automat)
     //   0 = IDLE, 1 = BLOCKED, 2 = LIFTING
     // Low byte (%MB104): stav L4b (výhybkový automat)
-    //   0 = IDLE, 1 = IMPULSE_C, 2 = WAIT_C, 3 = IMPULSE_D, 4 = WAIT_D
+    //   0 = IDLE, 1 = IMPULSE_C, 2 = CHECK_C, 3 = IMPULSE_D, 4 = CHECK_D
     {attribute 'OPC.UA.DA' := '1'}
     techstav        AT %MW104 : WORD;
 

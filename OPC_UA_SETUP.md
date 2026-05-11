@@ -1,130 +1,152 @@
-# OPC UA Setup Guide — RPA SoftPLC → SCADA
+# OPC UA Setup — TwinCAT 3 → mySCADA
+## REMIZ / L4_kolejiste
+
+---
 
 ## Overview
 
-The PLC project uses TwinCAT 3. SCADA variables are declared in
-`linka/L4_kolejiste/GVLs/SCADA.TcGVL` with fixed `%M` memory addresses.
-The `{attribute 'OPC.UA.DA' := '1'}` pragma has already been added to all
-SCADA variables in this repo — no PLC logic changes are needed.
+The PLC project runs on a Beckhoff TwinCAT 3 controller. SCADA variables are declared in
+`linka/L4_kolejiste/GVLs/SCADA.TcGVL` with fixed `%M` memory addresses and the
+`{attribute 'OPC.UA.DA' := '1'}` pragma already applied to all exported variables.
 
-OPC UA is provided by the **TwinCAT 3 Function Package TF6100**.
-The server runs on the same machine as the SoftPLC (TwinCAT/BSD or Windows).
+OPC UA connectivity is provided by **TwinCAT 3 Function Package TF6100 OPC-UA Server**,
+configured via the standalone **TwinCAT OPC UA Configurator** application.
+The SCADA frontend is **mySCADA**.
 
 ---
 
-## Step 1 — Check / Activate TF6100 License
+## Step 1 — Activate TF6100 License
 
 1. Open **TwinCAT XAE** (Visual Studio with TwinCAT shell).
-2. In the Solution Explorer open **SYSTEM → License**.
-3. Look for `TF6100 OPC-UA Server` in the list.
-   - If listed and active → proceed to Step 2.
-   - If missing → you need to purchase or activate a 7-day trial:
-     - Right-click the license → **Activate 7 Day Trial License**
-     - For production: generate a **License Request File** and send it to Beckhoff.
-4. After license activation, **restart TwinCAT** (TwinCAT → Restart TwinCAT).
+2. In Solution Explorer: **SYSTEM → License**.
+3. Find `TF6100 OPC-UA Server` in the list and activate:
+   - **Trial:** right-click → **Activate 7 Day Trial License**
+   - **Full:** generate a License Request File and submit to Beckhoff
+4. Restart TwinCAT after activation.
 
 ---
 
-## Step 2 — Enable the OPC UA Server in TwinCAT
+## Step 2 — Install and Open the TwinCAT OPC UA Configurator
 
-1. In TwinCAT XAE, go to **SYSTEM → Real-Time → Settings** and confirm the
-   runtime is in **Config Mode** (blue icon in system tray).
-2. Open **SYSTEM → TwinCAT OPC UA** node (appears after TF6100 install).
-   - If the node is missing, install TF6100 on the SoftPLC machine first
-     (download from Beckhoff website, run installer).
-3. In the OPC UA configuration:
-   - **Port**: leave at `4840` (standard OPC UA port).
-   - **Endpoint**: `opc.tcp://<softplc-ip>:4840`
-   - **Security**: for a local/test network, `None / None` is fine.
-     For production use `Basic256Sha256` + certificates.
-   - **Anonymous login**: enable for initial testing; add username/password later.
+The **TwinCAT OPC UA Configurator** is a standalone application installed as part of the
+TF6100 package. It is separate from TwinCAT XAE.
+
+1. After TF6100 installation, open **TwinCAT OPC UA Configurator** from the Start menu.
+2. The main view shows a list of configured OPC UA server instances.
 
 ---
 
-## Step 3 — Rebuild and Activate the PLC Configuration
+## Step 3 — Create a Server Instance
 
-The `{attribute 'OPC.UA.DA' := '1'}` pragmas are already in the code.
-After rebuild, TwinCAT auto-generates the symbol export file.
-
-1. In TwinCAT XAE open the solution for **L4_kolejiste**
-   (or the combined solution if you use one).
-2. **Build → Build Solution** (F7).
-   - Check Output window for 0 errors.
-3. **TwinCAT → Activate Configuration** → confirm with **OK**.
-4. Switch runtime to **Run Mode** (green icon in system tray).
-5. Confirm PLC task is running: **PLC → L4_kolejiste → Online**.
+1. In the Configurator, click **Add Server** (or the `+` button).
+2. Give the server a name (e.g. `REMIZ_Server`).
+3. Leave the port at **4840** (standard OPC UA port).
+4. Confirm — the new server instance appears in the list.
 
 ---
 
-## Step 4 — Verify OPC UA Symbol Export
+## Step 4 — Configure Security (Non-Encrypted)
 
-TwinCAT generates a symbol file at (on the SoftPLC machine):
+For lab use, anonymous non-encrypted access is sufficient.
 
-```
-C:\TwinCAT\3.1\Boot\Plc\Port_854\TcOpcUaServer.xml   (or similar path)
-```
+1. Open the server instance → go to the **Security** or **Endpoints** tab.
+2. Set **Security Policy** to `None`.
+3. Set **Authentication** to `Anonymous` (no username/password required).
+4. Save the configuration.
 
-Open this file and search for `SCADA_START` — you should see an entry like:
-
-```xml
-<Symbol name="PLC1.SCADA.SCADA_START" ... />
-```
-
-If the symbols are missing, check:
-- The pragma `{attribute 'OPC.UA.DA' := '1'}` is directly above the variable (no blank line between pragma and variable).
-- The GVL has `{attribute 'qualified_only'}` at the top — this is already set.
-- Rebuild was done after adding pragmas.
+> For production deployments use `Basic256Sha256` with certificates and username/password.
 
 ---
 
-## Step 5 — Test with a Free OPC UA Client
+## Step 5 — Point the Server to the TwinCAT Project Symbols (.tcm file)
 
-Before connecting SCADA, verify with **UaExpert** (free, from Unified Automation):
+The OPC UA server needs to know which PLC symbols to expose. This is done by referencing
+the compiled TwinCAT Module Configuration file (`.tcm`).
 
-1. Download and install UaExpert on any PC on the same network.
-2. Add server: `opc.tcp://<softplc-ip>:4840`
-3. Connect → browse the address space:
+1. In the server configuration, find the **Symbol/Namespace** or **Data Source** section.
+2. Browse to the `.tcm` file of the compiled PLC project. Typical path:
+
    ```
-   Root → Objects → PLC1 → SCADA → SCADA_START
-                                  → SCADA_RESET
-                                  → techstav
-                                  → systemstav
-                                  → ...
+   C:\TwinCAT\3.1\Boot\Plc\Port_854\
    ```
-4. Drag variables to the **Data Access View** and verify live values.
-5. Test a write: double-click `SCADA_START`, set value to `TRUE`, confirm
-   the PLC reacts (state should move from STOPPED → STARTING).
+
+   Select the `.tcm` file for **L4_kolejiste** (Port 854).
+
+3. The Configurator will load the symbol list from the file.
+4. In the **Namespace** view, verify that the SCADA variables are visible:
+
+   ```
+   PLC1 → SCADA → SCADA_START
+                → SCADA_RESET
+                → SCADA_STOP
+                → SCADA_MAN
+                → SCADA_ESTOP
+                → SCADA_MAN_KLADNY
+                → SCADA_MAN_OPACNY
+                → SCADA_MAN_ZAVORY
+                → SCADA_MAN_IMP_LEV
+                → SCADA_MAN_IMP_PRA
+                → SCADA_MAN_IMP_ZAD
+                → techstav
+                → systemstav
+   ```
+
+5. Confirm / apply — the namespace is now managed.
 
 ---
 
-## Step 6 — Connect SCADA
+## Step 6 — Allow Port 4840 in Windows Firewall
 
-Configure your SCADA tool's OPC UA client with these node IDs:
+On the machine running TwinCAT / the OPC UA server, open port 4840 TCP inbound.
 
-### Control inputs (SCADA writes → PLC)
+**PowerShell (run as Administrator):**
+```powershell
+New-NetFirewallRule -DisplayName "TwinCAT OPC UA" -Direction Inbound `
+  -Protocol TCP -LocalPort 4840 -Action Allow
+```
 
-| Variable | OPC UA Node ID | PLC Address |
-|---|---|---|
-| START | `ns=2;s=PLC1.SCADA.SCADA_START` | `%MX100.0` |
-| RESET | `ns=2;s=PLC1.SCADA.SCADA_RESET` | `%MX100.1` |
-| STOP | `ns=2;s=PLC1.SCADA.SCADA_STOP` | `%MX100.2` |
-| MAN mode | `ns=2;s=PLC1.SCADA.SCADA_MAN` | `%MX100.3` |
-| E-STOP | `ns=2;s=PLC1.SCADA.SCADA_ESTOP` | `%MX100.4` |
-| Man: drive+ | `ns=2;s=PLC1.SCADA.SCADA_MAN_KLADNY` | `%MX101.0` |
-| Man: drive- | `ns=2;s=PLC1.SCADA.SCADA_MAN_OPACNY` | `%MX101.1` |
-| Man: barriers | `ns=2;s=PLC1.SCADA.SCADA_MAN_ZAVORY` | `%MX101.2` |
-| Man: switch L | `ns=2;s=PLC1.SCADA.SCADA_MAN_IMP_LEV` | `%MX101.3` |
-| Man: switch R | `ns=2;s=PLC1.SCADA.SCADA_MAN_IMP_PRA` | `%MX101.4` |
-| Man: switch rear | `ns=2;s=PLC1.SCADA.SCADA_MAN_IMP_ZAD` | `%MX101.5` |
+Or manually via **Windows Defender Firewall → Advanced Settings → Inbound Rules → New Rule →
+Port → TCP → 4840 → Allow**.
 
-### Status outputs (PLC writes → SCADA reads)
+---
 
-| Variable | OPC UA Node ID | PLC Address | Meaning |
+## Step 7 — Connect mySCADA
+
+1. Open **mySCADA** and go to **Project Settings → Remote Servers** (or equivalent).
+2. Add a new **OPC UA** remote server with:
+   - **Endpoint URL:** `opc.tcp://<plc-ip-address>:4840`
+   - **Security:** None / Anonymous
+3. Connect — mySCADA should list the available nodes.
+4. Map variables to mySCADA tags:
+
+### Control inputs (mySCADA writes → PLC)
+
+| mySCADA Tag | OPC UA Node ID | PLC Address | Description |
 |---|---|---|---|
-| Tech state | `ns=2;s=PLC1.SCADA.techstav` | `%MW104` | High byte = barrier state (0/1/2), Low byte = switch state (0–4) |
-| System state | `ns=2;s=PLC1.SCADA.systemstav` | `%MW106` | PackML state (see table below) |
+| START | `ns=2;s=PLC1.SCADA.SCADA_START` | `%MX100.0` | Start command |
+| RESET | `ns=2;s=PLC1.SCADA.SCADA_RESET` | `%MX100.1` | Reset / clear fault |
+| STOP | `ns=2;s=PLC1.SCADA.SCADA_STOP` | `%MX100.2` | Stop command |
+| MAN | `ns=2;s=PLC1.SCADA.SCADA_MAN` | `%MX100.3` | Manual mode select |
+| E-STOP | `ns=2;s=PLC1.SCADA.SCADA_ESTOP` | `%MX100.4` | Software E-STOP |
+| MAN_KLADNY | `ns=2;s=PLC1.SCADA.SCADA_MAN_KLADNY` | `%MX101.0` | Manual: drive forward |
+| MAN_OPACNY | `ns=2;s=PLC1.SCADA.SCADA_MAN_OPACNY` | `%MX101.1` | Manual: drive reverse |
+| MAN_ZAVORY | `ns=2;s=PLC1.SCADA.SCADA_MAN_ZAVORY` | `%MX101.2` | Manual: barriers down |
+| MAN_IMP_LEV | `ns=2;s=PLC1.SCADA.SCADA_MAN_IMP_LEV` | `%MX101.3` | Manual: left switch |
+| MAN_IMP_PRA | `ns=2;s=PLC1.SCADA.SCADA_MAN_IMP_PRA` | `%MX101.4` | Manual: right switch |
+| MAN_IMP_ZAD | `ns=2;s=PLC1.SCADA.SCADA_MAN_IMP_ZAD` | `%MX101.5` | Manual: rear switch |
 
-### systemstav values (PackML)
+### Status outputs (PLC → mySCADA reads)
+
+| mySCADA Tag | OPC UA Node ID | PLC Address | Description |
+|---|---|---|---|
+| techstav | `ns=2;s=PLC1.SCADA.techstav` | `%MW104` | Technology state (see below) |
+| systemstav | `ns=2;s=PLC1.SCADA.systemstav` | `%MW106` | PackML system state (see below) |
+
+---
+
+## State Reference Tables
+
+### systemstav (%MW106) — PackML states
 
 | Value | State | Description |
 |---|---|---|
@@ -142,37 +164,24 @@ Configure your SCADA tool's OPC UA client with these node IDs:
 | 11 | MANUAL | Manual mode active |
 | 12 | SERVICE | Service mode (PIN required) |
 
-### techstav byte breakdown
+### techstav (%MW104) — Technology sequence states
 
 ```
 techstav (WORD = 16 bits)
   High byte (%MB105) = L4a barrier state
-    0 = IDLE      (no train at barrier)
+    0 = IDLE      (no train at barrier crossing)
     1 = BLOCKED   (train detected, barrier lowered)
-    2 = LIFTING   (barrier lifting after train passed)
+    2 = LIFTING   (barrier lifting after train passed, 500 ms delay)
 
   Low byte (%MB104) = L4b switch router state
     0 = IDLE
-    1 = IMPULSE_C  (sending switch impulse, direction C)
-    2 = WAIT_C     (waiting for switch confirmation)
-    3 = IMPULSE_D  (sending switch impulse, direction D)
-    4 = WAIT_D     (waiting for switch confirmation)
+    1 = IMPULSE_C  (left switch impulse active)
+    2 = CHECK_C    (verifying left switch position after impulse)
+    3 = IMPULSE_D  (right switch impulse active)
+    4 = CHECK_D    (verifying right switch position after impulse)
 ```
 
----
-
-## Step 7 — Firewall
-
-On the SoftPLC machine (Windows or TwinCAT/BSD), open port 4840 TCP inbound:
-
-**Windows (PowerShell as Administrator):**
-```powershell
-New-NetFirewallRule -DisplayName "TwinCAT OPC UA" -Direction Inbound `
-  -Protocol TCP -LocalPort 4840 -Action Allow
-```
-
-**TwinCAT/BSD:** configure via the BSD firewall (`pf`) or the TwinCAT network
-configuration panel.
+Example: `techstav = 16#0100` → L4a = BLOCKED (1), L4b = IDLE (0)
 
 ---
 
@@ -180,22 +189,12 @@ configuration panel.
 
 | Problem | Check |
 |---|---|
-| Can't connect in UaExpert | Ping the SoftPLC IP. Check port 4840 is open (firewall). Check TwinCAT is in Run Mode. |
-| Variables not visible in browser | Rebuild solution after adding pragmas. Check `TcOpcUaServer.xml` was regenerated. |
-| Node ID `ns=2;s=PLC1.SCADA...` not found | The PLC instance name may differ from `PLC1` — check in TwinCAT XAE under the PLC project name. |
-| Write from SCADA has no effect | Confirm `outEnable_Man` or `outEnable_Auto` is TRUE — most commands are gated by machine state. |
-| `systemstav` stays at 0 after START | Check HW E-STOP is not active, and `SCADA_ESTOP` (%MX100.4) is FALSE. |
+| mySCADA cannot connect | Ping the PLC IP. Confirm port 4840 is open in firewall. Check TwinCAT is in Run Mode. |
+| Variables not visible in namespace | Confirm the correct `.tcm` file is referenced in the Configurator. Rebuild and re-activate the PLC project. |
+| Node ID not found | The PLC instance name may differ from `PLC1` — verify in TwinCAT XAE under the PLC project name. |
+| Write from mySCADA has no effect | Confirm the machine is in the correct state — most commands are gated by `outEnable_Man` or `outEnable_Auto` in `FB_MachineControl`. |
+| `systemstav` stays at 0 after START | Check E-STOP is not active: HW NC input must be closed (TRUE), and `SCADA_ESTOP` (%MX100.4) must be FALSE. |
 
 ---
 
-## Notes on Other Line Modules (L1, L5, L6)
-
-Only **L4_kolejiste** has a SCADA GVL at this time. L1, L5, L6 use only
-`TAGS.TcGVL` for raw I/O. If you need OPC UA on those modules, create a
-`SCADA.TcGVL` for each (same pattern as L4) and add the OPC UA pragmas.
-
-Their PLC ports:
-- L1_otocny_stul → Port 851
-- L5_prisavka    → Port 852
-- L6_plosina     → Port 853
-- L4_kolejiste   → Port 854
+*REMIZ Project — OPC UA Setup · TF6100 Standalone Configurator · mySCADA integration*

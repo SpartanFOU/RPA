@@ -5,7 +5,7 @@
 VAR_GLOBAL
 	VYH_LEV AT %IX0.0: BOOL;		// Poloha levé výhybky (1 = vnější kolej)
 	VYH_PRA AT %IX0.1: BOOL;		// Poloha pravé výhybky (1 = vnější kolej)
-	VYH_ZAD AT %IX0.2: BOOL;		// Poloha zadní výhybky (1 = vnější kolej)
+	VYH_ZAD AT %IX0.2: BOOL;		// Poloha zadní výhybky (1 = vlečka)
 	PRE_I, PRE_KLA AT %IX0.3: BOOL;	// Poloha I přepínače (1 = přep. v poloze I)
 	PRE_II, PRE_OPA AT %IX0.4: BOOL;// Poloha II přepínače (1 = přep. v poloze II)
 	// společné sepnutí PRE_I a PRE_II signalizuje, že napětí kolejí je mimo povolený rozsah a proto bylo odpojeno
@@ -29,4 +29,4 @@ VAR_GLOBAL
 END_VAR
 ]]></Declaration>
   </GVL>
-</TcPlcObject>
+</TcPlcObject>Z

@@ -55,7 +55,6 @@ VAR
     bEStop_Safe     : BOOL;     // TRUE = bezpečný stav (žádný E-STOP)
 
     // Service mode
-    bServiceReq     : BOOL;
     tServiceTimeout : TON;
 
     // STARTING init helpers
@@ -257,8 +256,7 @@ CASE eState OF
         outgvFault     := FALSE;
         IF rStart.Q THEN
             eState := E_SystemState.STOPPED;
-        ELSIF bServiceReq AND (inServicePin = c_ServicePin) THEN
-            bServiceReq := FALSE;
+        ELSIF (inServicePin = c_ServicePin) AND (inServicePin <> 0) THEN
             tServiceTimeout(IN := FALSE);
             eState := E_SystemState.SERVICE;
         END_IF
