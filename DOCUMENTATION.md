@@ -30,22 +30,21 @@
    - 3.1 [Field-Level Signal Table](#31-field-level-signal-table)
    - 3.2 [PLC I/O Table (Control Level)](#32-plc-io-table-control-level)
    - 3.3 [SCADA Variables](#33-scada-variables)
-4. [Electrical Schematic](#4-electrical-schematic)
-5. [Operating States](#5-operating-states)
-   - 5.1 [State Table (PackML)](#51-state-table-packml)
-   - 5.2 [State Diagram](#52-state-diagram)
-6. [Technology Sequences](#6-technology-sequences)
-   - 6.1 [L4a — Barrier Control](#61-l4a--barrier-control)
-   - 6.2 [L4b — Switch Routing](#62-l4b--switch-routing)
-7. [Program Architecture](#7-program-architecture)
-   - 7.1 [FB Decomposition](#71-fb-decomposition)
-   - 7.2 [File Structure](#72-file-structure)
-   - 7.3 [Variable Naming Conventions](#73-variable-naming-conventions)
-   - 7.4 [Commented Source Code Reference](#74-commented-source-code-reference)
-8. [OPC UA / SCADA Integration](#8-opc-ua--scada-integration)
-9. [Cross-Reference](#9-cross-reference)
-10. [Test Protocol](#10-test-protocol)
-11. [AI Conversation Logs](#11-ai-conversation-logs)
+4. [Operating States](#4-operating-states)
+   - 4.1 [State Table (PackML)](#41-state-table-packml)
+   - 4.2 [State Diagram](#42-state-diagram)
+5. [Technology Sequences](#5-technology-sequences)
+   - 5.1 [L4a — Barrier Control](#51-l4a--barrier-control)
+   - 5.2 [L4b — Switch Routing](#52-l4b--switch-routing)
+6. [Program Architecture](#6-program-architecture)
+   - 6.1 [FB Decomposition](#61-fb-decomposition)
+   - 6.2 [File Structure](#62-file-structure)
+   - 6.3 [Variable Naming Conventions](#63-variable-naming-conventions)
+   - 6.4 [Commented Source Code Reference](#64-commented-source-code-reference)
+7. [OPC UA / SCADA Integration](#7-opc-ua--scada-integration)
+8. [Cross-Reference](#8-cross-reference)
+9. [Test Protocol](#9-test-protocol)
+10. [AI Conversation Logs](#10-ai-conversation-logs)
 
 ---
 
@@ -58,7 +57,7 @@ The REMIZ project automates a model railway layout (N-scale). Module **L4_koleji
 
 The system operates in modes: **AUTOMATION**, **MANUAL**. It follows the PackML state model (E_SystemState enum) using a dispatcher pattern: `FB_MachineControl` calls one state-specific FB per scan and acts on the `E_StateCmd` command returned. Status and control variables are exposed to mySCADA via OPC UA (TF6100).
 
-No pneumatic actuators are used. All actuators are electromechanical (DC motor via relay, bistable solenoid impulse coils, barrier relay). An electrical schematic is provided in Section 4.
+No pneumatic actuators are used. All actuators are electromechanical (DC motor via relay, bistable solenoid impulse coils, barrier relay).
 
 
 ---
@@ -252,14 +251,14 @@ Variables exported to mySCADA via OPC UA (`SCADA.TcGVL`, attribute `{attribute '
 | Variable | Address | Type | Description |
 |---|---|---|---|
 | `techstav` | `%MW104` | WORD | Technology state — high byte = L4a, low byte = L4b |
-| `systemstav` | `%MW106` | WORD | PackML system state (see Section 5.1) |
+| `systemstav` | `%MW106` | WORD | PackML system state (see Section 4.1) |
 
 -
 
 
-## 5. Operating States
+## 4. Operating States
 
-### 5.1 State Table (PackML)
+### 4.1 State Table (PackML)
 
 The system follows an ISA-88 PackML-inspired state model implemented via `E_SystemState` (WORD ENUM). `FB_MachineControl` dispatches to one active `FB_State_*` FB per scan; each state FB returns an `E_StateCmd` transition command.
 
@@ -310,7 +309,7 @@ Fault codes are **per-FB** — the same numeric value has different meaning depe
 
 ---
 
-### 5.2 State Diagram
+### 4.2 State Diagram
 
 ```mermaid
 stateDiagram-v2
@@ -358,9 +357,9 @@ stateDiagram-v2
 
 ---
 
-## 6. Technology Sequences
+## 5. Technology Sequences
 
-### 6.1 L4a — Barrier Control
+### 5.1 L4a — Barrier Control
 
 Sequential logic for the barrier cycle. Implemented in `FB_Barrier`. The sensor used to trigger barrier lowering and raising depends on the current drive direction (KLADNY/OPACNY), making the barrier control direction-aware.
 
@@ -410,7 +409,7 @@ stateDiagram-v2
 
 ---
 
-### 6.2 L4b — Switch Routing
+### 5.2 L4b — Switch Routing
 
 Implemented in `FB_SwitchRouter`. Tracks a boolean `bTargetOuter` flag. The flag is toggled on a **rising edge of HRA_PRA** (right gate sensor):
 - In forward mode (KLADNY): immediate toggle on HRA_PRA rising edge.
@@ -458,9 +457,9 @@ stateDiagram-v2
 
 ---
 
-## 7. Program Architecture
+## 6. Program Architecture
 
-### 7.1 FB Decomposition
+### 6.1 FB Decomposition
 
 The program uses a **dispatcher pattern**: `FB_MachineControl` instantiates one `FB_State_*` FB for each PackML state, calls all of them each scan (only the active one has `bExecute = TRUE`), and reads the `outCmd : E_StateCmd` returned to perform state transitions. Technology logic is fully isolated in `FB_Barrier`, `FB_SwitchRouter`, and `FB_DriveCtrl`. Physical I/O is accessed only through `FB_IO`.
 
@@ -497,7 +496,7 @@ MAIN (PRG)
 │     3. If fault latched → outJIZDA=TRUE, outKLADNY/OPACNY=FALSE, RETURN
 │        (PLC keeps drive ownership even while stopped — prevents external takeover)
 │     4. If disabled (inEnable=FALSE) → all outputs FALSE, RETURN
-│     5. Mutex on auto commands → latch 16#0002 if both TRUE (currently unreachable; see Sec 5.1)
+│     5. Mutex on auto commands → latch 16#0002 if both TRUE (currently unreachable; see Sec 4.1)
 │     6. Mutex on manual commands → suppress both silently (no fault)
 │     7. Normal: outKLADNY = auto OR manual; outOPACNY = auto OR manual; outJIZDA=TRUE
 │
@@ -597,7 +596,7 @@ END_TYPE
 
 ---
 
-### 7.2 File Structure
+### 6.2 File Structure
 
 ```
 L4_kolejiste/
@@ -633,7 +632,7 @@ L4_kolejiste/
 
 ---
 
-### 7.3 Variable Naming Conventions
+### 6.3 Variable Naming Conventions
 
 | Category | Convention | Examples |
 |---|---|---|
@@ -653,7 +652,7 @@ L4_kolejiste/
 
 ---
 
-### 7.4 Commented Source Code Reference
+### 6.4 Commented Source Code Reference
 
 The full source code is located in the TwinCAT project:
 
@@ -685,7 +684,7 @@ Key files and their purpose:
 
 ---
 
-## 8. OPC UA / SCADA Integration
+## 7. OPC UA / SCADA Integration
 
 OPC UA connectivity uses **TF6100 OPC-UA Server** with the standalone **TwinCAT OPC UA Configurator** application. The SCADA frontend is **mySCADA**.
 
@@ -722,7 +721,7 @@ OPC UA connectivity uses **TF6100 OPC-UA Server** with the standalone **TwinCAT 
 
 ---
 
-## 9. Cross-Reference
+## 8. Cross-Reference
 
 Full cross-reference exported from TwinCAT XAE: **[cross references.pdf](cross%20references.pdf)**
 
@@ -734,7 +733,7 @@ The cross-reference verifies:
 
 ---
 
-## 10. Test Protocol
+## 9. Test Protocol
 
 > **Test results to be filled in after testing session on `[PLACEHOLDER: date]`.**
 
@@ -859,15 +858,16 @@ The cross-reference verifies:
 
 | Test | Description | Pass? | Notes |
 |---|---|---|---|
-| 1 | Power-on safe state | | |
-| 2 | STARTING switch alignment (aligned / misaligned) | | |
-| 3 | AUTO stop — COMPLETING 500 ms delay | | |
-| 4 | Barrier L4a — forward direction sequence | | |
-| 5 | Barrier L4a — reverse direction sequence | | |
-| 7 | Switch routing — anti-collision gate guard | | |
-| 8 | Manual mode — barriers, drive mutex, parallel switch impulse | | |
-| 9 | HOLD / RESUME cycle | | |
-| 10 | HELD → MANUAL transition | | |
+| 1 | Power-on safe state | x | |
+| 2 | STARTING switch alignment (closed-loop, matched / mismatched / retry) | x | |
+| 3 | AUTO stop — COMPLETING 500 ms delay | x | |
+| 4 | Barrier L4a — forward direction sequence | x | |
+| 5 | Barrier L4a — reverse direction sequence | x | |
+| 6 | Switch routing L4b — impulse + settle | x | |
+| 7 | Manual mode — barriers, drive mutex, parallel switch impulse | x | |
+| 8 | E-STOP from RUNNING — JIZDA stays TRUE | x | |
+| 9 | HOLD / RESUME cycle | x | |
+| 10 | HELD → MANUAL transition | x | |
 
 > **Tester:** `[Mykyta Zaizzhai]`  
 > **Date:** `[11.05.2026]`  
@@ -875,7 +875,7 @@ The cross-reference verifies:
 
 ---
 
-## 11. AI Conversation Logs
+## 10. AI Conversation Logs
 
 Per project requirements (*"Součástí dokumentace jsou kompletní konverzace + datum a použitý model"*), all AI-assisted generation is documented here.
 
