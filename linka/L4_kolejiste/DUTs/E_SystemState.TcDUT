@@ -18,8 +18,6 @@ TYPE E_SystemState :
     ABORTED     := 9,   // Porucha; čeká na Clear od operátora
     CLEARING    := 10,  // Potvrzení poruchy, reset výstupů
     MANUAL      := 11,  // Manuální režim s antikolizní ochranou
-    SERVICE     := 12,
- 	WAITING_DIR := 13   // Servisní režim (PIN); antikolize vypnuta
 ) WORD;
 END_TYPE
 ]]></Declaration>

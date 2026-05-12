@@ -30,24 +30,18 @@ VAR_INPUT
     inSCADA_Man     : BOOL;   // %M100.3
     inSCADA_EStop   : BOOL;   // %M100.4 (active HIGH)
 
-    // --- Service PIN ---
-    inServicePin    : INT;    // 4-digit PIN; compared inside FB_State_Manual
-
     // --- Fault flags from child FBs ---
     inFault_Barrier : BOOL;
     inFault_Switch  : BOOL;
     inFault_Drive   : BOOL;
 
-    // --- Sensor feedback for STARTING init ---
+    // --- Sensor feedback for STARTING alignment ---
     inVYH_LEV       : BOOL;
     inVYH_PRA       : BOOL;
-    inPRE_KLA       : BOOL;
-    inPRE_OPA       : BOOL;
 END_VAR
 VAR_OUTPUT
     outEnable_Auto  : BOOL;
     outEnable_Man   : BOOL;
-    outServiceMode  : BOOL;
     outState        : E_SystemState;
     outgvFault      : BOOL;
     outInit_VYHYBKY : BOOL;
@@ -84,13 +78,11 @@ VAR
     fbAborted       : FB_State_Aborted;
     fbClearing      : FB_State_Clearing;
     fbManual        : FB_State_Manual;
-    fbService       : FB_State_Service;
 
     // Active state FB output mirror
     eCmd            : E_StateCmd;
     bActiveEnable_Auto  : BOOL;
     bActiveEnable_Man   : BOOL;
-    bActiveServiceMode  : BOOL;
     bActiveGvFault      : BOOL;
     bActiveVYHYBKY      : BOOL;
     bActiveIMP_LEV      : BOOL;
@@ -130,10 +122,12 @@ END_IF
 // ═══════════════════════════════════════════════════════════════════════
 IF (inFault_Barrier OR inFault_Switch OR inFault_Drive)
     AND (eState = E_SystemState.RUNNING
+      OR eState = E_SystemState.STARTING
       OR eState = E_SystemState.HOLDING
       OR eState = E_SystemState.HELD
-      OR eState = E_SystemState.MANUAL
-      OR eState = E_SystemState.SERVICE) THEN
+      OR eState = E_SystemState.RESUMING
+      OR eState = E_SystemState.COMPLETING
+      OR eState = E_SystemState.MANUAL) THEN
     eState := E_SystemState.ABORTING;
 END_IF
 
@@ -187,12 +181,7 @@ fbClearing(
 );
 fbManual(
     bExecute     := (eState = E_SystemState.MANUAL),
-    bStop        := rStop.Q,
-    inServicePin := inServicePin
-);
-fbService(
-    bExecute := (eState = E_SystemState.SERVICE),
-    bStop    := rStop.Q
+    bStop        := rStop.Q
 );
 
 // ── Read active state FB outputs ────────────────────────────────────
@@ -201,7 +190,6 @@ CASE eState OF
         eCmd                := fbStopped.outCmd;
         bActiveEnable_Auto  := fbStopped.outEnable_Auto;
         bActiveEnable_Man   := fbStopped.outEnable_Man;
-        bActiveServiceMode  := fbStopped.outServiceMode;
         bActiveGvFault      := fbStopped.outgvFault;
         bActiveVYHYBKY      := fbStopped.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbStopped.outInit_IMP_LEV;
@@ -211,7 +199,6 @@ CASE eState OF
         eCmd                := fbStarting.outCmd;
         bActiveEnable_Auto  := fbStarting.outEnable_Auto;
         bActiveEnable_Man   := fbStarting.outEnable_Man;
-        bActiveServiceMode  := fbStarting.outServiceMode;
         bActiveGvFault      := fbStarting.outgvFault;
         bActiveVYHYBKY      := fbStarting.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbStarting.outInit_IMP_LEV;
@@ -221,7 +208,6 @@ CASE eState OF
         eCmd                := fbRunning.outCmd;
         bActiveEnable_Auto  := fbRunning.outEnable_Auto;
         bActiveEnable_Man   := fbRunning.outEnable_Man;
-        bActiveServiceMode  := fbRunning.outServiceMode;
         bActiveGvFault      := fbRunning.outgvFault;
         bActiveVYHYBKY      := fbRunning.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbRunning.outInit_IMP_LEV;
@@ -231,7 +217,6 @@ CASE eState OF
         eCmd                := fbHolding.outCmd;
         bActiveEnable_Auto  := fbHolding.outEnable_Auto;
         bActiveEnable_Man   := fbHolding.outEnable_Man;
-        bActiveServiceMode  := fbHolding.outServiceMode;
         bActiveGvFault      := fbHolding.outgvFault;
         bActiveVYHYBKY      := fbHolding.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbHolding.outInit_IMP_LEV;
@@ -241,7 +226,6 @@ CASE eState OF
         eCmd                := fbHeld.outCmd;
         bActiveEnable_Auto  := fbHeld.outEnable_Auto;
         bActiveEnable_Man   := fbHeld.outEnable_Man;
-        bActiveServiceMode  := fbHeld.outServiceMode;
         bActiveGvFault      := fbHeld.outgvFault;
         bActiveVYHYBKY      := fbHeld.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbHeld.outInit_IMP_LEV;
@@ -251,7 +235,6 @@ CASE eState OF
         eCmd                := fbResuming.outCmd;
         bActiveEnable_Auto  := fbResuming.outEnable_Auto;
         bActiveEnable_Man   := fbResuming.outEnable_Man;
-        bActiveServiceMode  := fbResuming.outServiceMode;
         bActiveGvFault      := fbResuming.outgvFault;
         bActiveVYHYBKY      := fbResuming.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbResuming.outInit_IMP_LEV;
@@ -261,7 +244,6 @@ CASE eState OF
         eCmd                := fbCompleting.outCmd;
         bActiveEnable_Auto  := fbCompleting.outEnable_Auto;
         bActiveEnable_Man   := fbCompleting.outEnable_Man;
-        bActiveServiceMode  := fbCompleting.outServiceMode;
         bActiveGvFault      := fbCompleting.outgvFault;
         bActiveVYHYBKY      := fbCompleting.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbCompleting.outInit_IMP_LEV;
@@ -271,7 +253,6 @@ CASE eState OF
         eCmd                := fbComplete.outCmd;
         bActiveEnable_Auto  := fbComplete.outEnable_Auto;
         bActiveEnable_Man   := fbComplete.outEnable_Man;
-        bActiveServiceMode  := fbComplete.outServiceMode;
         bActiveGvFault      := fbComplete.outgvFault;
         bActiveVYHYBKY      := fbComplete.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbComplete.outInit_IMP_LEV;
@@ -281,7 +262,6 @@ CASE eState OF
         eCmd                := fbAborting.outCmd;
         bActiveEnable_Auto  := fbAborting.outEnable_Auto;
         bActiveEnable_Man   := fbAborting.outEnable_Man;
-        bActiveServiceMode  := fbAborting.outServiceMode;
         bActiveGvFault      := fbAborting.outgvFault;
         bActiveVYHYBKY      := fbAborting.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbAborting.outInit_IMP_LEV;
@@ -291,7 +271,6 @@ CASE eState OF
         eCmd                := fbAborted.outCmd;
         bActiveEnable_Auto  := fbAborted.outEnable_Auto;
         bActiveEnable_Man   := fbAborted.outEnable_Man;
-        bActiveServiceMode  := fbAborted.outServiceMode;
         bActiveGvFault      := fbAborted.outgvFault;
         bActiveVYHYBKY      := fbAborted.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbAborted.outInit_IMP_LEV;
@@ -301,7 +280,6 @@ CASE eState OF
         eCmd                := fbClearing.outCmd;
         bActiveEnable_Auto  := fbClearing.outEnable_Auto;
         bActiveEnable_Man   := fbClearing.outEnable_Man;
-        bActiveServiceMode  := fbClearing.outServiceMode;
         bActiveGvFault      := fbClearing.outgvFault;
         bActiveVYHYBKY      := fbClearing.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbClearing.outInit_IMP_LEV;
@@ -311,21 +289,11 @@ CASE eState OF
         eCmd                := fbManual.outCmd;
         bActiveEnable_Auto  := fbManual.outEnable_Auto;
         bActiveEnable_Man   := fbManual.outEnable_Man;
-        bActiveServiceMode  := fbManual.outServiceMode;
         bActiveGvFault      := fbManual.outgvFault;
         bActiveVYHYBKY      := fbManual.outInit_VYHYBKY;
         bActiveIMP_LEV      := fbManual.outInit_IMP_LEV;
         bActiveIMP_PRA      := fbManual.outInit_IMP_PRA;
 
-    E_SystemState.SERVICE:
-        eCmd                := fbService.outCmd;
-        bActiveEnable_Auto  := fbService.outEnable_Auto;
-        bActiveEnable_Man   := fbService.outEnable_Man;
-        bActiveServiceMode  := fbService.outServiceMode;
-        bActiveGvFault      := fbService.outgvFault;
-        bActiveVYHYBKY      := fbService.outInit_VYHYBKY;
-        bActiveIMP_LEV      := fbService.outInit_IMP_LEV;
-        bActiveIMP_PRA      := fbService.outInit_IMP_PRA;
 
 END_CASE
 
@@ -343,7 +311,6 @@ CASE eCmd OF
     E_StateCmd.TO_ABORTED:      eState := E_SystemState.ABORTED;
     E_StateCmd.TO_CLEARING:     eState := E_SystemState.CLEARING;
     E_StateCmd.TO_MANUAL:       eState := E_SystemState.MANUAL;
-    E_StateCmd.TO_SERVICE:      eState := E_SystemState.SERVICE;
     // E_StateCmd.NONE: no change
 END_CASE
 
@@ -352,7 +319,6 @@ END_CASE
 // ═══════════════════════════════════════════════════════════════════════
 outEnable_Auto  := bActiveEnable_Auto;
 outEnable_Man   := bActiveEnable_Man;
-outServiceMode  := bActiveServiceMode;
 outgvFault      := bActiveGvFault;
 outInit_VYHYBKY := bActiveVYHYBKY;
 outInit_IMP_LEV := bActiveIMP_LEV;

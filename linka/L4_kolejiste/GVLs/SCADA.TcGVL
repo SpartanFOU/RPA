@@ -37,14 +37,14 @@ VAR_GLOBAL
     // High byte (%MB105): stav L4a (závorový automat)
     //   0 = IDLE, 1 = BLOCKED, 2 = LIFTING
     // Low byte (%MB104): stav L4b (výhybkový automat)
-    //   0 = IDLE, 1 = IMPULSE_C, 2 = CHECK_C, 3 = IMPULSE_D, 4 = CHECK_D
+    //   0 = IDLE, 1 = IMPULSE (levá+pravá současně), 2 = WAIT (50 ms settle)
     {attribute 'OPC.UA.DA' := '1'}
     techstav        AT %MW104 : WORD;
 
     // --- Stavové slovo systému (PackML) ---
     //   0=STOPPED, 1=STARTING, 2=RUNNING, 3=HOLDING, 4=HELD,
     //   5=RESUMING, 6=COMPLETING, 7=COMPLETE, 8=ABORTING,
-    //   9=ABORTED, 10=CLEARING, 11=MANUAL, 12=SERVICE
+    //   9=ABORTED, 10=CLEARING, 11=MANUAL
     {attribute 'OPC.UA.DA' := '1'}
     systemstav      AT %MW106 : WORD;
 END_VAR

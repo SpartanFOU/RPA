@@ -43,19 +43,13 @@ VAR
 
     tLiftDelay   : TON;   // Prodleva před zvednutím závor po průjezdu
 
-    // FDI
-    tFDI_Down       : TON;   // Max. čas pro stažení závor
-    tFDI_Up         : TON;   // Max. čas pro zvednutí závor
-    bFault_latch    : BOOL;  // Latch poruchy
-    wFaultCode_hold : WORD;  // Uložení kódu poruchy po latch
+    // FDI (open-loop barrier — no position sensor; latch infrastructure kept
+    // for the standard outFault/outFaultCode interface even though no faults
+    // are currently raised by this FB)
+    bFault_latch    : BOOL;
+    wFaultCode_hold : WORD;
 
-    // Constants
     c_tLiftDelay    : TIME := T#500MS;
-    c_tFDI_Timeout  : TIME := T#3S;
-
-    // FDI fault codes
-    c_FAULT_DOWN_TIMEOUT : WORD := 16#0101;  // Závory se nestáhly včas
-    c_FAULT_UP_TIMEOUT   : WORD := 16#0102;  // Závory se nezvedaly včas
 END_VAR
 ]]></Declaration>
     <Implementation>
@@ -113,8 +107,6 @@ IF NOT inEnable THEN
     // Reset state machine so it starts clean when auto re-enables
     eState := 0;
     tLiftDelay(IN := FALSE);
-    tFDI_Down(IN := FALSE);
-    tFDI_Up(IN := FALSE);
     outTechstav := 0;
     RETURN;
 END_IF
@@ -137,16 +129,12 @@ CASE eState OF
 
     0: // IDLE — závory nahoře, čekání na lokomotivu
         outZAVORY := FALSE;
-        tFDI_Down(IN := FALSE);
-        tFDI_Up(IN := FALSE);
         IF bTriggerDown THEN    // Entry sensor fired → lower barriers immediately
-            tFDI_Down(IN := FALSE);  // Reset before arming
             eState := 1;
         END_IF
 
     1: // BLOCKED — závory dolů, lokomotiva na přejezdu
         outZAVORY := TRUE;
-        tFDI_Down(IN := FALSE);
         IF bTriggerDown THEN    // Another entry trigger while blocked (e.g. unknown direction) — stay blocked
             tLiftDelay(IN := FALSE);
             eState := 1;
@@ -171,7 +159,7 @@ CASE eState OF
 END_CASE
 
 outTechstav := INT_TO_BYTE(eState);
-// (No dedicated barrier position sensor in this layout — FDI codes 0x0101/0x0102 reserved for future use.)
+// Open-loop barrier — no FDI codes raised (no position sensor in this layout).
 ]]></ST>
     </Implementation>
     <LineIds Name="FB_Barrier">

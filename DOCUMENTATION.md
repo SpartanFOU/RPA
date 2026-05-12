@@ -8,12 +8,12 @@
 |---|---|
 | **Project name** | REMIZ — Railway Model Control System |
 | **Module** | L4_kolejiste — Barrier control (L4a) + Switch routing (L4b) |
-| **PLC platform** | Beckhoff TwinCAT 3 — `[PLACEHOLDER: insert exact PLC model, e.g. CX5140]` |
+| **PLC platform** | PC-based TwinCAT 3.1 (build 4024.62) — Intel Gigabit NIC as EtherCAT master |
 | **PLC runtime port** | 854 |
 | **Programming language** | IEC 61131-3 Structured Text (TwinCAT 3) |
 | **SCADA** | mySCADA (via OPC UA / TF6100) |
-| **Author** | `[PLACEHOLDER: name]` |
-| **Date** | 2026-05-08 |
+| **Author** | Mykyta Zaizzhai |
+| **Date** | 2026-05-12 |
 | **AI model used** | Claude Sonnet 4.6 (claude-sonnet-4-6) |
 
 ---
@@ -53,14 +53,13 @@
 
 The REMIZ project automates a model railway layout (N-scale). Module **L4_kolejiste** controls two subsystems:
 
-- **L4a — Barrier control:** Automatically lowers and raises a level-crossing barrier when a locomotive is detected at the crossing sensor.
-- **L4b — Switch routing:** Automatically aligns turnout switches to the correct position based on the selected locomotive drive direction, with anti-collision protection.
+- **L4a — Barrier control:** Lowers and raises a level-crossing barrier based on locomotive presence. The sensor mapping is direction-aware: when driving forward (KLADNY), the left gate (HRA_LEV / SP1) is the entry trigger and the barrier gate (HRA_ZAV / SP2) is the exit trigger; in reverse (OPACNY) the mapping swaps. A 500 ms lift delay (`c_tLiftDelay`) prevents premature raising.
+- **L4b — Switch routing:** Tracks a `bTargetOuter` flag toggled by a rising edge on the right gate sensor (HRA_PRA). Aligns the left (IMP_LEV) and right (IMP_PRA) double-track switches to the required position. The rear switch (IMP_ZAD) is operated in MANUAL mode only. Anti-collision: no impulse is issued while a locomotive occupies the gate sensors.
 
-The system operates in three modes: **AUTOMATION**, **MANUAL**, and **SERVICE**. It follows the PackML state model and exposes status/control variables to mySCADA via OPC UA (TF6100).
+The system operates in modes: **AUTOMATION**, **MANUAL**. It follows the PackML state model (E_SystemState enum) using a dispatcher pattern: `FB_MachineControl` calls one state-specific FB per scan and acts on the `E_StateCmd` command returned. Status and control variables are exposed to mySCADA via OPC UA (TF6100).
 
-The project does not include pneumatic actuators. All actuators are electromechanical (DC motor via relay, solenoid impulse coils, barrier relay). An electrical schematic is provided in Section 4.
+No pneumatic actuators are used. All actuators are electromechanical (DC motor via relay, bistable solenoid impulse coils, barrier relay). An electrical schematic is provided in Section 4.
 
-> **Note on physical setup:** The system was implemented and tested on a Beckhoff TwinCAT 3 controller (`[PLACEHOLDER: model]`). Physical wiring and I/O connections were set up in the lab. No electro-pneumatic components are used in this module.
 
 ---
 
@@ -78,9 +77,9 @@ Physical components that perform work on the track layout:
 | T-04 | Locomotive (EMD GP38) | Single DC loco, 0–14 V, direction controlled by relay polarity |
 | T-05 | Modelling transformer | Supplies 0–14 V DC to rails |
 | T-06 | Level-crossing barriers | Electromechanical actuator; lowered/raised by relay output |
-| T-07 | Left turnout solenoid | Bistable impulse solenoid; toggled by brief electrical pulse |
-| T-08 | Right turnout solenoid | Bistable impulse solenoid; toggled by brief electrical pulse |
-| T-09 | Rear turnout solenoid | Bistable impulse solenoid; toggled by brief electrical pulse |
+| T-07 | Left turnout solenoid | Bistable impulse solenoid; toggled by brief electrical pulse (≥ 25 ms) |
+| T-08 | Right turnout solenoid | Bistable impulse solenoid; toggled by brief electrical pulse (≥ 25 ms) |
+| T-09 | Rear turnout solenoid | Bistable impulse solenoid; toggled by brief electrical pulse (≥ 25 ms) |
 | T-10 | Relay board | Interfaces EtherCAT DO terminals to track-level voltages |
 
 ### 2.2 Level 1 — Field Instrumentation
@@ -89,42 +88,41 @@ Requirements for sensors and actuators at the field level:
 
 | # | Requirement | Sensor/Actuator |
 |---|---|---|
-| F-01 | Detect loco presence at left gate | Opt-sens-1 (HRA_LEV) |
-| F-02 | Detect loco presence at right gate | Opt-sens-2 (HRA_PRA) |
-| F-03 | Detect loco presence at rear gate | Opt-sens-3 (HRA_ZAD) |
-| F-04 | Detect loco presence at barrier crossing | Opt-sens-4 (HRA_ZAV) |
-| F-05 | Read left switch position feedback | Pos-sens-C (VYH_LEV): 0=inner, 1=outer |
-| F-06 | Read right switch position feedback | Pos-sens-D (VYH_PRA): 0=inner, 1=outer |
-| F-07 | Read rear switch position feedback | Pos-sens-E (VYH_ZAD): 0=main, 1=siding |
-| F-08 | Read operator direction selection | Dir-sens-A (PRE_KLA / PRE_OPA) |
-| F-09 | Manual override buttons (3×) | Push-btn-C/D/E (TLA_LEV/PRA/ZAD) |
-| F-10 | Drive loco forward | Actuator A — output YA1 (KLADNY) |
-| F-11 | Drive loco reverse | Actuator A — output YA0 (OPACNY) |
-| F-12 | Lower / raise barriers | Actuator B — output YB (ZAVORY): 1=down |
-| F-13 | Toggle left switch | Actuator C — impulse output YC (IMP_LEV) |
-| F-14 | Toggle right switch | Actuator D — impulse output YD (IMP_PRA) |
-| F-15 | Toggle rear switch | Actuator E — impulse output YE (IMP_ZAD) |
+| F-01 | Detect loco presence at left gate | HRA_LEV / SP1 (%IX1.1) |
+| F-02 | Detect loco presence at right gate | HRA_PRA (%IX1.0) |
+| F-03 | Detect loco presence at rear gate | HRA_ZAD (%IX1.2) |
+| F-04 | Detect loco presence at barrier gate | HRA_ZAV / SP2 (%IX1.3) |
+| F-05 | Read left switch position feedback | VYH_LEV (%IX0.0): 0=inner, 1=outer |
+| F-06 | Read right switch position feedback | VYH_PRA (%IX0.1): 0=inner, 1=outer |
+| F-07 | Read rear switch position feedback | VYH_ZAD (%IX0.2): 0=main, 1=siding |
+| F-08 | Read operator direction selection | PRE_KLA (%IX0.3) / PRE_OPA (%IX0.4) |
+| F-09 | Manual override buttons (3×) | TLA_LEV (%IX0.5) / TLA_PRA (%IX0.6) / TLA_ZAD (%IX0.7) |
+| F-10 | Drive loco forward | DO5 — KLADNY (%QX0.5) |
+| F-11 | Drive loco reverse | DO6 — OPACNY (%QX0.6) |
+| F-12 | Lower / raise barriers | DO4 — ZAVORY (%QX0.4): 1=down |
+| F-13 | Toggle left switch | DO7 — IMP_LEV (%QX0.7) |
+| F-14 | Toggle right switch | DO8 — IMP_PRA (%QX1.0) |
+| F-15 | Toggle rear switch | DO9 — IMP_ZAD (%QX1.1) |
 
 ### 2.3 Level 2 — Control (PLC)
 
 | # | Requirement | Notes |
 |---|---|---|
-| C-01 | Execute L4a barrier control logic | `FB_Barrier`; state machine: IDLE → BLOCKED → LIFTING |
-| C-02 | Execute L4b switch routing logic | `FB_SwitchRouter`; state machine: IDLE → IMPULSE_x → CHECK_x |
-| C-03 | Enforce drive mutual exclusion | KLADNY and OPACNY never simultaneously TRUE |
-| C-04 | Sequence switch impulses (one at a time) | Max 1 s timeout (`c_tImpulseMax`); position sensor confirms completion |
-| C-05 | Detect voltage fault (PRE_KLA AND PRE_OPA) | Enter fault state; stop drive; set gvFault |
-| C-06 | Assert VYHYBKY on startup | PLC takes switch control before any routing |
-| C-07 | Assert JIZDA on startup | PLC takes drive control in automated mode |
-| C-08 | Expose status variables to supervisory level | Via `GVL_SCADA` with OPC UA pragmas |
-| C-09 | Provide TwinCAT PLC Visualization (HMI) | `VIS_Main.TcVIS`: sensor lamps, fault banner, manual override buttons |
+| C-01 | Execute L4a barrier control logic | `FB_Barrier`; state machine: IDLE → BLOCKED → LIFTING; direction-aware sensor mapping |
+| C-02 | Execute L4b switch routing logic | `FB_SwitchRouter`; target tracked via `bTargetOuter`; edge on HRA_PRA triggers toggle |
+| C-03 | Enforce drive mutual exclusion | KLADNY and OPACNY never simultaneously TRUE; `FB_DriveCtrl` enforces in both auto and manual |
+| C-04 | Sequence switch impulses (one at a time) | Max 1 s timeout (`tImpLEV`, shared by both); 50 ms settle (`tWaitL`) after impulse |
+| C-05 | Detect voltage fault (PRE_KLA AND PRE_OPA) | `FB_DriveCtrl` latches fault 16#0001, stops drive, triggers ABORTING |
+| C-06 | Assert VYHYBKY on STARTING | `FB_State_Starting` asserts VYHYBKY (DO10) immediately, then checks VYH_LEV vs VYH_PRA: if mismatched, pulses **one** switch only (150 ms) → waits 120 ms → RUNNING; if already matched, transitions to RUNNING immediately |
+| C-07 | Assert JIZDA in RUNNING | `FB_DriveCtrl.outJIZDA` → DO11; `FB_IO` also holds JIZDA during fault (`inForceJIZDA`) |
+| C-08 | Expose status variables to supervisory level | `SCADA.TcGVL` with `{attribute 'OPC.UA.DA' := '1'}` pragmas |
+| C-09 | Provide TwinCAT PLC Visualization (HMI) | `Visualization.TcVIS`: sensor lamps, fault banner, manual override buttons |
 | C-10 | Run on Beckhoff TwinCAT 3 / EtherCAT | 10 ms scan cycle; IEC 61131-3 Structured Text |
-| C-11 | AUTOMATION mode | Full automatic L4a + L4b cycle |
-| C-12 | MANUAL mode | Individual actuator control via HW buttons or SCADA M-variables; anti-collision active |
-| C-13 | SERVICE mode | Manual control without anti-collision; access secured by 4-digit PIN |
-| C-14 | Standard button interface | START, RESET, STOP, MAN, E-STOP (NC 3-wire) |
-| C-15 | FDI diagnostics per drive circuit | Timeout detection, sensor disagreement, voltage fault |
-| C-16 | E-STOP 3-wire NC wiring | Break in any conductor treated as E-STOP activation |
+| C-11 | AUTOMATION mode | Full automatic L4a + L4b cycle; `outEnable_Auto = TRUE` |
+| C-12 | MANUAL mode | Individual actuator control via SCADA M101 variables and TLA_* hardware push-buttons; drive mutex active. All main operator buttons (START/STOP/RESET/MAN/E-STOP) are SCADA-only — no physical HW buttons wired. |
+| C-14 | Standard button interface | START, RESET, STOP, MAN, E-STOP (combined HW + SCADA, ORed together) |
+| C-15 | FDI diagnostics per drive circuit | Latched fault codes per FB; cleared only on CLEARING state |
+| C-16 | E-STOP handling | SCADA_ESTOP software equivalent; HW NC input `inBTN_EStop` (TRUE = safe); any FALSE → ABORTING |
 
 ### 2.4 Level 3 — Supervisory (SCADA)
 
@@ -132,12 +130,12 @@ The supervisory level is implemented via **mySCADA** connected over OPC UA (TF61
 
 | # | Requirement | Notes |
 |---|---|---|
-| S-01 | Expose system state (`systemstav`) | PackML state as numeric value via `%MW106` |
-| S-02 | Expose technology state (`techstav`) | Combined L4a/L4b state via `%MW104` |
-| S-03 | SCADA equivalents of all operator buttons | M-variables `%M100.0`–`%M100.4` |
-| S-04 | SCADA manual actuator controls | M-variables `%M101.0`–`%M101.5` |
+| S-01 | Expose system state (`systemstav`) | PackML state as WORD via `%MW106` |
+| S-02 | Expose technology state (`techstav`) | High byte = L4a state, low byte = L4b state via `%MW104` |
+| S-03 | SCADA equivalents of all operator buttons | `SCADA_START/RESET/STOP/MAN/ESTOP` at `%MX100.0`–`%MX100.4` |
+| S-04 | SCADA manual actuator controls | `SCADA_MAN_KLADNY/OPACNY/ZAVORY/IMP_LEV/IMP_PRA/IMP_ZAD` at `%MX101.0`–`%MX101.5` |
 | S-05 | OPC UA server on port 4840 | TF6100 standalone Configurator |
-| S-06 | mySCADA remote server mapping | All SCADA variables mapped as tags in mySCADA project |
+| S-06 | mySCADA remote server mapping | All `SCADA.*` variables exposed with `OPC.UA.DA` pragma |
 
 ---
 
@@ -147,82 +145,91 @@ The supervisory level is implemented via **mySCADA** connected over OPC UA (TF61
 
 #### Inputs (Sensors)
 
-| Generic Name | Type | Physical Description | Active State | PLC Symbol |
-|---|---|---|---|---|
-| Opt-sens-1 | Digital Input | Optical gate — left (double-track entry) | 1 = loco present | HRA_LEV |
-| Opt-sens-2 | Digital Input | Optical gate — right (double-track exit) | 1 = loco present | HRA_PRA |
-| Opt-sens-3 | Digital Input | Optical gate — rear (siding area) | 1 = loco present | HRA_ZAD |
-| Opt-sens-4 | Digital Input | Optical gate — barrier crossing | 1 = loco present | HRA_ZAV |
-| Pos-sens-C | Digital Input | Left switch position feedback | 1 = outer track | VYH_LEV |
-| Pos-sens-D | Digital Input | Right switch position feedback | 1 = outer track | VYH_PRA |
-| Pos-sens-E | Digital Input | Rear switch position feedback | 1 = siding | VYH_ZAD |
-| Dir-sens-A-fwd | Digital Input | Operator direction switch — forward | 1 = forward selected | PRE_KLA |
-| Dir-sens-A-rev | Digital Input | Operator direction switch — reverse | 1 = reverse selected | PRE_OPA |
-| Push-btn-C | Digital Input | Manual push button — left switch | 1 = pressed | TLA_LEV |
-| Push-btn-D | Digital Input | Manual push button — right switch | 1 = pressed | TLA_PRA |
-| Push-btn-E | Digital Input | Manual push button — rear switch | 1 = pressed | TLA_ZAD |
+| Generic Name | Type | Physical Description | Active State | PLC Symbol | IO GVL |
+|---|---|---|---|---|---|
+| VYH_LEV | Digital Input | Left switch position feedback | 1 = outer track | VYH_LEV | DI0 |
+| VYH_PRA | Digital Input | Right switch position feedback | 1 = outer track | VYH_PRA | DI1 |
+| VYH_ZAD | Digital Input | Rear switch position feedback | 1 = siding | VYH_ZAD | DI2 |
+| PRE_I / PRE_KLA | Digital Input | Operator direction — forward / switch position I | 1 = forward / pos I | PRE_KLA | DI3 |
+| PRE_II / PRE_OPA | Digital Input | Operator direction — reverse / switch position II | 1 = reverse / pos II | PRE_OPA | DI4 |
+| TLA_LEV | Digital Input | Manual push button — left switch | 1 = pressed | TLA_LEV | DI5 |
+| TLA_PRA | Digital Input | Manual push button — right switch | 1 = pressed | TLA_PRA | DI6 |
+| TLA_ZAD | Digital Input | Manual push button — rear switch | 1 = pressed | TLA_ZAD | DI7 |
+| HRA_PRA | Digital Input | Optical gate — right (double-track exit) | 1 = loco present | HRA_PRA | DI8 |
+| HRA_LEV / SP1 | Digital Input | Optical gate — left (double-track entry) | 1 = loco present | HRA_LEV | DI9 |
+| HRA_ZAD | Digital Input | Optical gate — rear (siding area) | 1 = loco present | HRA_ZAD | DI10 |
+| HRA_ZAV / SP2 | Digital Input | Optical gate — barrier crossing | 1 = loco present | HRA_ZAV | DI11 |
+
+> **Note:** PRE_KLA AND PRE_OPA both TRUE simultaneously indicates rail voltage outside the allowed range (transformer protection tripped). `FB_DriveCtrl` raises fault 16#0001 on this condition.
 
 #### Outputs (Actuators)
 
-| Generic Name | Actuator | Type | Physical Description | Active State | PLC Symbol |
-|---|---|---|---|---|---|
-| YA1 | A (Loco drive) | Digital Output | Drive relay — forward polarity | 1 = forward drive | KLADNY |
-| YA0 | A (Loco drive) | Digital Output | Drive relay — reverse polarity | 1 = reverse drive | OPACNY |
-| YB | B (Barriers) | Digital Output | Barrier relay | 1 = barriers DOWN | ZAVORY |
-| YC | C (Left switch) | Digital Output | Left switch impulse solenoid | 1 = toggle pulse | IMP_LEV |
-| YD | D (Right switch) | Digital Output | Right switch impulse solenoid | 1 = toggle pulse | IMP_PRA |
-| YE | E (Rear switch) | Digital Output | Rear switch impulse solenoid | 1 = toggle pulse | IMP_ZAD |
+| Generic Name | Actuator | Type | Physical Description | Active State | PLC Symbol | IO GVL |
+|---|---|---|---|---|---|---|
+| ZAVORY / Z | B (Barriers) | Digital Output | Barrier relay | 1 = barriers DOWN | ZAVORY | DO4 |
+| KLADNY | A (Loco drive) | Digital Output | Drive relay — forward polarity | 1 = forward drive | KLADNY | DO5 |
+| OPACNY | A (Loco drive) | Digital Output | Drive relay — reverse polarity | 1 = reverse drive | OPACNY | DO6 |
+| IMP_LEV | C (Left switch) | Digital Output | Left switch impulse solenoid | 1 = toggle pulse | IMP_LEV | DO7 |
+| IMP_PRA | D (Right switch) | Digital Output | Right switch impulse solenoid | 1 = toggle pulse | IMP_PRA | DO8 |
+| IMP_ZAD | E (Rear switch) | Digital Output | Rear switch impulse solenoid | 1 = toggle pulse | IMP_ZAD | DO9 |
+| VYHYBKY | PLC ctrl | Digital Output | PLC asserts switch control | 1 = PLC owns switches | VYHYBKY | DO10 |
+| JIZDA | PLC ctrl | Digital Output | PLC asserts drive control | 1 = PLC owns drive | JIZDA | DO11 |
 
-> **Note:** YA1 and YA0 are mutually exclusive. YC, YD, YE are impulse outputs — held HIGH until position sensor confirms or `c_tImpulseMax` (1 s) elapses. Only one impulse may be active at a time.
-
-#### Internal PLC Control Outputs (takeover flags)
-
-| Generic Name | Type | Description | Active State | PLC Symbol |
-|---|---|---|---|---|
-| PLC-ctrl-drive | Digital Output | PLC asserts drive control | 1 = PLC owns drive | JIZDA |
-| PLC-ctrl-switch | Digital Output | PLC asserts switch control | 1 = PLC owns switches | VYHYBKY |
+> **Note:** KLADNY and OPACNY are mutually exclusive. IMP_LEV and IMP_PRA are impulse outputs — held HIGH for up to 1 s (`tImpLEV`, shared by both), followed by a 50 ms settle delay (`tWaitL`). Both left and right switch impulses are always issued together (parallel rail constraint). IMP_ZAD is only operated in MANUAL mode.
 
 ---
 
 ### 3.2 PLC I/O Table (Control Level)
 
-Signals as declared in `IO.TcGVL`, with EtherCAT addresses.
+#### EtherCAT Hardware
+
+| Position | Module | Type | Description |
+|---|---|---|---|
+| Term 23 | EK1100 | EtherCAT coupler, 2A E-Bus | Connects EtherCAT fieldbus to terminal block |
+| Term 24 | EL1008 | 8-channel DI, 24V, 3ms | Digital inputs %IX0.0–%IX0.7 (DI0–DI7) |
+| Term 25 | EL1008 | 8-channel DI, 24V, 3ms | Digital inputs %IX1.0–%IX1.7 (DI8–DI11, rest unused) |
+| Term 26 | EL2008 | 8-channel DO, 24V, 0.5A | Digital outputs %QX0.4–%QX1.3 (DO4–DO11, all 8 channels used) |
+| Term 29 | EL9011 | End terminal | Bus termination |
+
+> **EtherCAT master:** PC running TwinCAT 3.1 (build 4024.62) via Intel Gigabit NIC. AmsNetId: `169.254.109.136.3.1`.
+
+Signals as declared in `IO.TcGVL` and aliased in `TAGS.TcGVL`, with EtherCAT addresses.
 
 #### Digital Inputs
 
-| PLC Symbol | EtherCAT Address | Field Signal | Description |
+| PLC Symbol (TAGS) | IO GVL | EtherCAT Address | Description |
 |---|---|---|---|
-| HRA_LEV | %IX1.1 | Opt-sens-1 | Left gate — loco present |
-| HRA_PRA | %IX1.0 | Opt-sens-2 | Right gate — loco present |
-| HRA_ZAD | %IX1.2 | Opt-sens-3 | Rear gate — loco present |
-| HRA_ZAV | %IX1.3 | Opt-sens-4 | Barrier gate — loco present |
-| VYH_LEV | %IX0.0 | Pos-sens-C | Left switch position (1=outer) |
-| VYH_PRA | %IX0.1 | Pos-sens-D | Right switch position (1=outer) |
-| VYH_ZAD | %IX0.2 | Pos-sens-E | Rear switch position (1=siding) |
-| PRE_KLA | %IX0.3 | Dir-sens-A-fwd | Operator: forward selected |
-| PRE_OPA | %IX0.4 | Dir-sens-A-rev | Operator: reverse selected |
-| TLA_LEV | %IX0.5 | Push-btn-C | Manual button — left switch |
-| TLA_PRA | %IX0.6 | Push-btn-D | Manual button — right switch |
-| TLA_ZAD | %IX0.7 | Push-btn-E | Manual button — rear switch |
+| VYH_LEV | DI0 | %IX0.0 | Left switch position (1=outer) |
+| VYH_PRA | DI1 | %IX0.1 | Right switch position (1=outer) |
+| VYH_ZAD | DI2 | %IX0.2 | Rear switch position (1=siding) |
+| PRE_KLA (PRE_I) | DI3 | %IX0.3 | Operator: forward / switch pos I |
+| PRE_OPA (PRE_II) | DI4 | %IX0.4 | Operator: reverse / switch pos II |
+| TLA_LEV | DI5 | %IX0.5 | Manual button — left switch |
+| TLA_PRA | DI6 | %IX0.6 | Manual button — right switch |
+| TLA_ZAD | DI7 | %IX0.7 | Manual button — rear switch |
+| HRA_PRA | DI8 | %IX1.0 | Right gate — loco present |
+| HRA_LEV (SP1) | DI9 | %IX1.1 | Left gate — loco present |
+| HRA_ZAD | DI10 | %IX1.2 | Rear gate — loco present |
+| HRA_ZAV (SP2) | DI11 | %IX1.3 | Barrier gate — loco present |
 
 #### Digital Outputs
 
-| PLC Symbol | EtherCAT Address | Field Signal | Description |
+| PLC Symbol (TAGS) | IO GVL | EtherCAT Address | Description |
 |---|---|---|---|
-| KLADNY | %QX0.5 | YA1 | Drive forward |
-| OPACNY | %QX0.6 | YA0 | Drive reverse |
-| ZAVORY | %QX0.4 | YB | Barriers (1=DOWN) |
-| IMP_LEV | %QX0.7 | YC | Left switch impulse |
-| IMP_PRA | %QX1.0 | YD | Right switch impulse |
-| IMP_ZAD | %QX1.1 | YE | Rear switch impulse |
-| VYHYBKY | %QX1.2 | PLC-ctrl-switch | PLC owns switch control |
-| JIZDA | %QX1.3 | PLC-ctrl-drive | PLC owns drive control |
+| ZAVORY (Z) | DO4 | %QX0.4 | Barriers (1=DOWN) |
+| KLADNY | DO5 | %QX0.5 | Drive forward |
+| OPACNY | DO6 | %QX0.6 | Drive reverse |
+| IMP_LEV | DO7 | %QX0.7 | Left switch impulse |
+| IMP_PRA | DO8 | %QX1.0 | Right switch impulse |
+| IMP_ZAD | DO9 | %QX1.1 | Rear switch impulse |
+| VYHYBKY | DO10 | %QX1.2 | PLC owns switch control |
+| JIZDA | DO11 | %QX1.3 | PLC owns drive control |
 
 ---
 
 ### 3.3 SCADA Variables
 
-Variables exported to mySCADA via OPC UA (`SCADA.TcGVL`, attribute `OPC.UA.DA`).
+Variables exported to mySCADA via OPC UA (`SCADA.TcGVL`, attribute `{attribute 'OPC.UA.DA' := '1'}`).
 
 #### Command Variables (SCADA → PLC)
 
@@ -239,7 +246,6 @@ Variables exported to mySCADA via OPC UA (`SCADA.TcGVL`, attribute `OPC.UA.DA`).
 | `SCADA_MAN_IMP_LEV` | `%MX101.3` | BOOL | Manual: toggle left switch |
 | `SCADA_MAN_IMP_PRA` | `%MX101.4` | BOOL | Manual: toggle right switch |
 | `SCADA_MAN_IMP_ZAD` | `%MX101.5` | BOOL | Manual: toggle rear switch |
-| *(reserved)* | `%MX101.6`–`%MX103.7` | BOOL | Reserved for other modules |
 
 #### Status Variables (PLC → SCADA)
 
@@ -248,73 +254,59 @@ Variables exported to mySCADA via OPC UA (`SCADA.TcGVL`, attribute `OPC.UA.DA`).
 | `techstav` | `%MW104` | WORD | Technology state — high byte = L4a, low byte = L4b |
 | `systemstav` | `%MW106` | WORD | PackML system state (see Section 5.1) |
 
----
+-
 
-## 4. Electrical Schematic
-
-> **`[PLACEHOLDER]`**
->
-> Insert electrical schematic here. The schematic should show:
-> - E-STOP 3-wire (NC) connection to the PLC input
-> - Optical sensor (24V) connections to PLC digital inputs (%IX)
-> - Position sensor connections
-> - Manual push button connections
-> - PLC digital output connections to relay board
-> - Relay board outputs to loco drive motor, barrier actuator, switch solenoids
-> - 24V DC power supply for PLC / sensors
-> - 0–14V DC transformer for track supply
->
-> Recommended tool: draw.io / diagrams.net (Electrical shape library)
->
-> File to attach: `schematic.pdf` or `schematic.png`
-
----
 
 ## 5. Operating States
 
 ### 5.1 State Table (PackML)
 
-The system is modelled as a single machine following the ISA-88 PackML state model with extensions for MANUAL and SERVICE modes.
+The system follows an ISA-88 PackML-inspired state model implemented via `E_SystemState` (WORD ENUM). `FB_MachineControl` dispatches to one active `FB_State_*` FB per scan; each state FB returns an `E_StateCmd` transition command.
 
-| Value | State | What happens | How to enter |
+| Value | State (E_SystemState) | What happens | How to enter |
 |---|---|---|---|
-| 0 | **STOPPED** | All outputs de-energised. KLADNY=0, OPACNY=0, ZAVORY=0. JIZDA and VYHYBKY not asserted. System is safe and idle. | Power-on, or after STOPPING / CLEARING completes. |
-| 1 | **STARTING** | Short initialization delay (200 ms) to allow I/O to stabilize. No outputs active yet. VYHYBKY and JIZDA are asserted when RUNNING begins (`outEnable_Auto` → TRUE). | START command issued from STOPPED. |
-| 2 | **RUNNING** | Normal automatic operation: L4a barrier control and L4b switch routing both active. Locomotive drives in selected direction. | STARTING completes without fault. |
-| 3 | **HOLDING** | Loco stopped (KLADNY=0, OPACNY=0). Barriers held in current state. Switch control maintained. Waiting for condition to clear. | HOLD command from RUNNING, or internal pause condition. |
-| 4 | **HELD** | System paused. Drive stopped. All outputs stable. PLC running but no new commands issued. | HOLDING completes its stop sequence. |
-| 5 | **RESUMING** | Restores drive direction from PRE_KLA/PRE_OPA. Re-engages L4a and L4b logic. | RESUME command from HELD. |
-| 6 | **COMPLETING** | Graceful shutdown: stop loco, raise barriers, release VYHYBKY and JIZDA. | STOP command from RUNNING. |
-| 7 | **COMPLETE** | All outputs off. System at rest. Ready to restart cleanly. | COMPLETING sequence finishes. |
-| 8 | **ABORTING** | Immediate stop: all outputs de-energised instantly. gvFault flag set. | E-STOP activated OR fault detected (PRE_KLA AND PRE_OPA both TRUE), from **any** state. |
-| 9 | **ABORTED** | System halted in fault state. gvFault=TRUE. No outputs active. Requires operator acknowledgement. | ABORTING sequence completes. |
-| 10 | **CLEARING** | Operator acknowledges fault. gvFault cleared. Outputs verified de-energised. | RESET command from ABORTED after fault is resolved and E-STOP cleared. |
-| 11 | **MANUAL** | Individual actuator commands passed through (HW buttons or SCADA M-variables). Anti-collision interlocks active. | MAN command from STOPPED. |
-| 12 | **SERVICE** | Full manual control without anti-collision protection. PIN-secured access (`c_ServicePin = 1234`). Auto-exits after 5 min or STOP. | `inServicePin = 1234` (non-zero) while in MANUAL. Wire HMI PIN field to `inServicePin` in MAIN. |
+| 0 | **STOPPED** | All outputs de-energised. KLADNY=0, OPACNY=0, ZAVORY=0. JIZDA and VYHYBKY not asserted. System safe and idle. | Power-on; CLEARING; COMPLETE + RESET; or MANUAL + STOP. |
+| 1 | **STARTING** | VYHYBKY asserted immediately. Switch alignment is a **matching** operation: the goal is `VYH_LEV = VYH_PRA`, not any specific target position. If the two are already equal → done immediately. If they differ, the one currently in the *outer* position is pulsed (150 ms) → 120 ms settle → **closed-loop verify** (re-read VYH_LEV/VYH_PRA). If still mismatched, the sequence retries from the check; otherwise transitions to RUNNING. Only one solenoid is pulsed per attempt — this is consistent with the parallel-rail constraint of L4b, which forces both switches to move together *only when actively changing target position*; here the two switches are already on opposite sides, so a single pulse re-syncs them. `outEnable_Auto` stays **FALSE** throughout STARTING. | START command from STOPPED. |
+| 2 | **RUNNING** | Normal automatic operation: L4a barrier control and L4b switch routing both active. Locomotive drives in selected direction. `outEnable_Auto = TRUE`. | STARTING completes without fault. |
+| 3 | **HOLDING** | Transient — stops loco (placeholder for ramp-down sequencing). Immediately returns `TO_HELD`. | MAN command from RUNNING. |
+| 4 | **HELD** | System paused. Drive stopped. Waiting for Resume or MAN. `outEnable_Auto = FALSE`, `outEnable_Man = FALSE`. | HOLDING completes. |
+| 5 | **RESUMING** | Transient — restores drive direction (placeholder). Immediately returns `TO_RUNNING`. | RESUME (START) command from HELD. |
+| 6 | **COMPLETING** | 500 ms delay (`c_tCompleteDelay = T#500MS`), then → COMPLETE. Drive stopped, barriers held in current state. | STOP command from RUNNING. |
+| 7 | **COMPLETE** | All outputs off. System at rest. Awaiting RESET. | COMPLETING timer elapsed. |
+| 8 | **ABORTING** | Immediate stop: all outputs de-energised. `outgvFault = TRUE`. Immediately returns `TO_ABORTED`. | E-STOP active OR child FB fault, from any state except ABORTED/ABORTING. |
+| 9 | **ABORTED** | System halted. `outgvFault = TRUE` held. No outputs active. Requires operator RESET + E-STOP cleared. | ABORTING completes. |
+| 10 | **CLEARING** | Transient — clears fault flag (`outgvFault = FALSE`), de-energises outputs, returns `TO_STOPPED`. One-scan `inClearFault` pulse clears child FB fault latches. | RESET from ABORTED after E-STOP cleared (`bEStop_Safe = TRUE`). |
+| 11 | **MANUAL** | `outEnable_Man = TRUE`. Individual actuator commands passed from SCADA M101 variables and TLA_* push-buttons through `FB_DriveCtrl` (mutex active) and `FB_SwitchRouter` / `FB_Barrier` (manual path). Anti-collision not enforced in manual path. | MAN command from STOPPED or HELD. |
 
 #### E-STOP Behaviour by State
 
 | Current State | E-STOP action |
 |---|---|
-| RUNNING / HOLDING / HELD / STARTING | Immediate de-energise all outputs → ABORTING |
+| RUNNING / HOLDING / HELD / STARTING / RESUMING / COMPLETING | Immediate de-energise all outputs → ABORTING |
 | STOPPED / COMPLETE | All outputs already de-energised → ABORTING → ABORTED. Require RESET after E-STOP cleared. |
-| MANUAL / SERVICE | Immediate de-energise all outputs → ABORTING |
+| MANUAL | Immediate de-energise all outputs → ABORTING |
+| ABORTED / ABORTING | No additional action; already in fault state |
+
+> E-STOP check has highest priority in `FB_MachineControl`. RESET from ABORTED is blocked while `inBTN_EStop = FALSE` or `SCADA_ESTOP = TRUE`.
+
+**JIZDA (DO11) during E-STOP / fault:** KLADNY and OPACNY are de-energised, but **JIZDA stays asserted**. This is enforced by two mechanisms working together:
+1. `FB_DriveCtrl`: when `bFault_latch = TRUE`, it explicitly sets `outJIZDA := TRUE` before de-energising drive outputs — the PLC keeps ownership of the drive circuit even while stopped.
+2. `FB_IO`: `DO11 = inJIZDA OR inForceJIZDA`, where `inForceJIZDA := fbMachine.outgvFault` (TRUE during ABORTING / ABORTED). This provides a second path that holds JIZDA high regardless of `FB_DriveCtrl`'s output.
+
+The effect: no external controller can claim drive control while the system is in a fault or E-STOP state.
 
 #### FDI (Fault Detection and Isolation)
 
-Each drive circuit includes diagnostics:
-
-Fault codes are **per-FB** — the same numeric value has different meaning depending on which FB raises it. Read `fbBarrier.outFaultCode`, `fbSwitchRouter.outFaultCode`, and `fbDrive.outFaultCode` separately.
+Fault codes are **per-FB** — the same numeric value has different meaning depending on which FB raises it. All fault latches are cleared by the one-scan `inClearFault` pulse that MAIN issues when the CLEARING state is entered (via `rClearing` R_TRIG).
 
 | FB | Fault Code | Condition | Action |
 |---|---|---|---|
-| `FB_Barrier` | 0x0101 | Barriers did not lower within `c_tFDI_Timeout` (placeholder — no position sensor yet) | Set fault, → ABORTING |
-| `FB_Barrier` | 0x0102 | Barriers did not raise within `c_tFDI_Timeout` (placeholder — no position sensor yet) | Set fault, → ABORTING |
-| `FB_SwitchRouter` | 0x0001 | Left switch (C) did not respond to impulse — position sensor still wrong after CHECK_C | Set fault, → ABORTING |
-| `FB_SwitchRouter` | 0x0002 | Right switch (D) did not respond to impulse — position sensor still wrong after CHECK_D | Set fault, → ABORTING |
-| `FB_SwitchRouter` | 0x0003 | Left and right switch position sensors disagree (VYH_LEV ≠ VYH_PRA) | Set fault, → ABORTING |
-| `FB_DriveCtrl` | 0x0001 | Voltage fault — PRE_KLA AND PRE_OPA both TRUE (transformer protection tripped) | Set gvFault, → ABORTING |
-| `FB_DriveCtrl` | 0x0002 | Drive mutex violation — KLADNY and OPACNY commanded simultaneously | Set fault, → ABORTING |
+| `FB_DriveCtrl` | 16#0001 | Voltage fault — PRE_KLA AND PRE_OPA both TRUE (transformer protection tripped) | Latch `outFault`; de-energise KLADNY/OPACNY; **keep `outJIZDA = TRUE`** (PLC retains drive ownership); trigger ABORTING from operational states (see child-fault list below) |
+| `FB_DriveCtrl` | 16#0002 | Mutex fault — both auto commands (inKLADNY_cmd AND inOPACNY_cmd) TRUE simultaneously | **Reserved — currently unreachable.** In MAIN, `inKLADNY_cmd := outPRE_KLA AND …` and `inOPACNY_cmd := outPRE_OPA AND …`. Both can only be TRUE when PRE_KLA AND PRE_OPA are both TRUE, which triggers the voltage fault 16#0001 first. Kept as defence-in-depth for future wiring changes |
+| `FB_Barrier` | — | No FDI raised in this layout (no barrier position sensor — barrier control is open-loop). Previously declared fault codes 16#0101 / 16#0102 and their timers have been removed | — |
+| `FB_SwitchRouter` | 16#0003 | Switch mismatch: VYH_LEV ≠ VYH_PRA for longer than `tMismatch = 200 ms` | Latch `outFault`; trigger ABORTING |
+
+**Child-fault routing.** `FB_MachineControl` promotes a child fault to ABORTING only when the active state is RUNNING, STARTING, HOLDING, HELD, RESUMING, COMPLETING, or MANUAL. Faults occurring in STOPPED / COMPLETE / ABORTING / ABORTED / CLEARING are not acted upon (system is already idle or already in fault handling).
 
 ---
 
@@ -325,36 +317,40 @@ stateDiagram-v2
     [*] --> STOPPED : Power ON
 
     STOPPED --> STARTING : Start command
-    STARTING --> RUNNING : Init OK
-    STARTING --> ABORTING : E-Stop only
+    STOPPED --> MANUAL : MAN command
+    STOPPED --> ABORTING : E-Stop
+
+    STARTING --> RUNNING : Switch alignment verified + no fault
+    STARTING --> ABORTING : E-Stop / Child fault
 
     RUNNING --> HOLDING : MAN button
     RUNNING --> COMPLETING : Stop command
-    RUNNING --> ABORTING : E-Stop / Fault
+    RUNNING --> ABORTING : E-Stop / Child fault
 
-    HOLDING --> HELD : Loco stopped
-    HELD --> RESUMING : Resume command
+    HOLDING --> HELD : (immediate)
+    HELD --> RESUMING : Start (Resume)
     HELD --> MANUAL : MAN command
-    HELD --> ABORTING : E-Stop / Fault
-    RESUMING --> RUNNING : Drive restored
+    HELD --> ABORTING : E-Stop / Child fault
+    RESUMING --> RUNNING : (immediate)
+    RESUMING --> ABORTING : E-Stop / Child fault
 
-    COMPLETING --> COMPLETE : Shutdown done
+    COMPLETING --> COMPLETE : 500 ms delay elapsed
+    COMPLETING --> ABORTING : E-Stop / Child fault
     COMPLETE --> STOPPED : Reset
+    COMPLETE --> ABORTING : E-Stop
 
-    ABORTING --> ABORTED : Outputs cleared
-    ABORTED --> CLEARING : Clear command (fault resolved)
-    CLEARING --> STOPPED : System verified safe
+    ABORTING --> ABORTED : (immediate, outgvFault=TRUE)
+    ABORTED --> CLEARING : Reset AND E-Stop cleared
+    CLEARING --> STOPPED : (immediate, outgvFault=FALSE)
 
-    STOPPED --> MANUAL : MAN command
-    MANUAL --> STOPPED : START (exit manual)
-    MANUAL --> SERVICE : Correct PIN present (inServicePin = 1234)
-    SERVICE --> MANUAL : Timeout / STOP button
-    MANUAL --> ABORTING : E-Stop / Fault
-    SERVICE --> ABORTING : E-Stop / Fault
+    MANUAL --> STOPPED : STOP button
+    MANUAL --> ABORTING : E-Stop / Child fault
 
     note right of ABORTING
         E-Stop: any state except ABORTED/ABORTING
-        Child fault: RUNNING/HOLDING/HELD/MANUAL/SERVICE only
+        Child fault (inFault_Barrier/Switch/Drive): RUNNING, STARTING,
+            HOLDING, HELD, RESUMING, COMPLETING, MANUAL
+        Both checked in FB_MachineControl each scan
     end note
 ```
 
@@ -366,29 +362,38 @@ stateDiagram-v2
 
 ### 6.1 L4a — Barrier Control
 
-Sequential logic for the barrier cycle. Triggered by loco presence at the crossing sensor (Opt-sens-4 / HRA_ZAV).
+Sequential logic for the barrier cycle. Implemented in `FB_Barrier`. The sensor used to trigger barrier lowering and raising depends on the current drive direction (KLADNY/OPACNY), making the barrier control direction-aware.
+
+**Sensor mapping by direction:**
+
+| Direction | Entry sensor (lower barriers) | Exit sensor (raise barriers) |
+|---|---|---|
+| KLADNY (forward) | SP1 / HRA_LEV — rising edge | SP2 / HRA_ZAV — falling edge |
+| OPACNY (reverse) | SP2 / HRA_ZAV — rising edge | SP1 / HRA_LEV — falling edge |
+| Unknown (neither) | Either SP1 or SP2 — rising edge (safe default) | SP1 **AND** SP2 — both falling edges required before raising |
 
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
 
-    IDLE : Barriers UP (ZAVORY=0)\nWaiting for loco
-    BLOCKED : Barriers DOWN (ZAVORY=1)\nLoco at crossing
-    LIFTING : Barriers DOWN (ZAVORY=1)\nLoco passed — 500 ms delay running
+    IDLE : outZAVORY = FALSE\nWaiting for entry trigger
+    BLOCKED : outZAVORY = TRUE\nLoco at crossing — barriers down
+    LIFTING : outZAVORY = TRUE\nc_tLiftDelay (500 ms) running
 
-    IDLE --> BLOCKED : HRA_ZAV rising edge\n(loco arrives)
-    BLOCKED --> LIFTING : HRA_ZAV falling edge\n(loco clears sensor)
-    LIFTING --> IDLE : c_tLiftDelay elapsed (500 ms)\nZAVORY=0
+    IDLE --> BLOCKED : Entry trigger (direction-mapped rising edge)
+    BLOCKED --> LIFTING : Exit trigger (direction-mapped falling edge)
+    LIFTING --> IDLE : c_tLiftDelay elapsed → outZAVORY = FALSE
 
-    LIFTING --> BLOCKED : HRA_ZAV rising edge\n(next pass before delay expires)
+    LIFTING --> BLOCKED : New entry trigger before delay expires
 
     note right of IDLE
-        Guard: JIZDA must be TRUE
-        If JIZDA=FALSE → reset to IDLE
+        Guard: inJIZDA must be TRUE (auto mode)
+        Manual path: inManEnable + inMan_Zavory → outZAVORY direct
+        Edge detectors always run: rSP1_Rise, fSP1_Fall, rSP2_Rise, fSP2_Fall
     end note
 ```
 
-**`techstav` high byte encoding:**
+**`techstav` high byte (`%MB105`) encoding:**
 
 | Value | State |
 |---|---|
@@ -396,48 +401,60 @@ stateDiagram-v2
 | 1 | BLOCKED |
 | 2 | LIFTING |
 
+**Constants:**
+
+| Name | Value | Purpose |
+|---|---|---|
+| `c_tLiftDelay` | `T#500MS` | Delay after train clears before raising barriers |
+| `c_tFDI_Timeout` | `T#3S` | Declared for future FDI use — not active (no position sensor) |
+
 ---
 
 ### 6.2 L4b — Switch Routing
 
-Continuously checks and corrects switch positions relative to the current drive direction.
+Implemented in `FB_SwitchRouter`. Tracks a boolean `bTargetOuter` flag. The flag is toggled on a **rising edge of HRA_PRA** (right gate sensor):
+- In forward mode (KLADNY): immediate toggle on HRA_PRA rising edge.
+- In reverse mode (OPACNY): toggle with a 1 s pre-switch delay (`tPreSwitch`) followed by a 2 s debounce wait (`tDebounce`).
+
+Both VYH_LEV and VYH_PRA switches are operated together (parallel rail constraint — switching one side requires switching the other). The rear switch (IMP_ZAD) is only operated in MANUAL mode.
 
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
 
-    IDLE : Check VYH_LEV and VYH_PRA\nvs. required position
-    IMPULSE_C : IMP_LEV=1 (left switch impulse)
-    CHECK_C : IMP_LEV=0 — verify left switch
-    IMPULSE_D : IMP_PRA=1 (right switch impulse)
-    CHECK_D : IMP_PRA=0 — verify right switch
+    IDLE : Check VYH_LEV and VYH_PRA vs. bTargetOuter\noutIMP_LEV/PRA = FALSE
+    IMPULSE : outIMP_LEV/PRA = TRUE\ntImpLEV running (max 1 s, shared)
+    WAIT : outIMP_LEV/PRA = FALSE\ntWaitL running (50 ms settle)
 
-    IDLE --> IMPULSE_C : VYH_LEV wrong\nAND loco NOT on left gate
-    IMPULSE_C --> CHECK_C : VYH_LEV correct (early)\nOR 1 s timeout
-    CHECK_C --> IMPULSE_D : VYH_PRA still wrong\nAND loco NOT on right gate
-    CHECK_C --> IDLE : VYH_PRA correct
-
-    IDLE --> IMPULSE_D : VYH_LEV correct\nAND VYH_PRA wrong\nAND loco NOT on right gate
-    IMPULSE_D --> CHECK_D : VYH_PRA correct (early)\nOR 1 s timeout
-    CHECK_D --> IDLE : Always
+    IDLE --> IMPULSE : Switch position wrong (VYH ≠ bTargetOuter)\nAND loco NOT on gate sensors
+    IMPULSE --> WAIT : Position confirmed OR 1 s timeout
+    WAIT --> IDLE : 50 ms settle elapsed
 
     note right of IDLE
-        Forward (KLADNY=1): both VYH=1 (outer track)
-        Reverse (OPACNY=1): both VYH=0 (inner track)
-        Guard: VYHYBKY must be TRUE
-        Guard: do NOT impulse while loco on switch
+        bTargetOuter toggled on HRA_PRA rising edge\nForward: immediate | Reverse: 1 s pre-delay + 2 s debounce
+        Anti-collision: no impulse while HRA_LEV or HRA_PRA active (both gates checked)
+        Mismatch fault: VYH_LEV ≠ VYH_PRA for > 200 ms (tMismatch)
+        Guard: inVYHYBKY must be TRUE (auto mode)
     end note
 ```
 
-**`techstav` low byte encoding:**
+**`techstav` low byte (`%MB104`) encoding:**
 
 | Value | State |
 |---|---|
 | 0 | IDLE |
-| 1 | IMPULSE_C |
-| 2 | CHECK_C |
-| 3 | IMPULSE_D |
-| 4 | CHECK_D |
+| 1 | IMPULSE (left + right simultaneously) |
+| 2 | WAIT (50 ms settle) |
+
+**Timers:**
+
+| Name | Value | Purpose |
+|---|---|---|
+| `tImpLEV` | max 1 s | Impulse hold — shared by both IMP_LEV and IMP_PRA (fired together) |
+| `tWaitL` | 50 ms | Post-impulse settle (both sides) |
+| `tDebounce` | 2 s | Reverse-mode debounce wait after toggle |
+| `tPreSwitch` | 1 s | Reverse-mode pre-switch delay before toggle |
+| `tMismatch` | 200 ms | Mismatch fault timeout (VYH_LEV ≠ VYH_PRA) |
 
 ---
 
@@ -445,69 +462,138 @@ stateDiagram-v2
 
 ### 7.1 FB Decomposition
 
-The program uses **weak OOP**: logic is decomposed into function blocks with explicit input/output ports. Global variables are minimised — only `IO.TcGVL`, `TAGS.TcGVL`, and `SCADA.TcGVL` are global.
+The program uses a **dispatcher pattern**: `FB_MachineControl` instantiates one `FB_State_*` FB for each PackML state, calls all of them each scan (only the active one has `bExecute = TRUE`), and reads the `outCmd : E_StateCmd` returned to perform state transitions. Technology logic is fully isolated in `FB_Barrier`, `FB_SwitchRouter`, and `FB_DriveCtrl`. Physical I/O is accessed only through `FB_IO`.
 
 ```
 MAIN (PRG)
+│   Instances: fbIO, fbMachine, fbBarrier, fbSwitchRouter, fbDrive
+│   R_TRIG rClearing — one-scan pulse on CLEARING entry → inClearFault to child FBs
 │
-├── FB_IO                        (* Maps IO GVL ↔ internal signals; single I/O access point *)
+├── FB_IO                      (* Single I/O access point: DI→named outputs, named inputs→DO *)
+│   IN:  inKLADNY, inOPACNY, inZAVORY, inIMP_LEV/PRA/ZAD, inVYHYBKY, inJIZDA, inForceJIZDA
+│   OUT: outVYH_LEV/PRA/ZAD, outPRE_KLA/OPA, outTLA_LEV/PRA/ZAD, outHRA_PRA/LEV/ZAD/ZAV
+│   NOTE: DO11 (JIZDA) = inJIZDA OR inForceJIZDA (held during fault)
 │
-├── FB_MachineControl            (* PackML state machine + mode logic + E-STOP + PIN *)
-│   ├── Inputs:  HW buttons, SCADA M100 vars, child FB fault flags
-│   ├── Outputs: systemstav (%MW106), enable signals to child FBs, mode flags
-│   └── Contains:
-│       ├── PackML state machine  (CASE systemstav OF …)
-│       ├── Mode logic            (AUTO / MANUAL / SERVICE)
-│       ├── E-STOP handling       (3-wire NC; immediate abort)
-│       ├── START/RESET/STOP edge detection (R_TRIG)
-│       └── Service PIN verification (c_ServicePin = 1234)
+├── FB_MachineControl          (* PackML dispatcher: combines HW+SCADA inputs, E-STOP, calls state FBs *)
+│   IN:  inBTN_Start/Reset/Stop/Man, inBTN_EStop (NC: TRUE=safe)
+│        inSCADA_Start/Reset/Stop/Man/EStop (ORed with HW buttons)
+│        inFault_Barrier/Switch/Drive: BOOL
+│        inVYH_LEV/PRA (read by FB_State_Starting for switch alignment check)
+│   OUT: outEnable_Auto, outEnable_Man, outServiceMode: BOOL
+│        outState: E_SystemState, outgvFault: BOOL
+│        outInit_VYHYBKY, outInit_IMP_LEV, outInit_IMP_PRA: BOOL (STARTING alignment signals)
+│   Contains state FB instances (one per state, only active gets bExecute=TRUE):
+│        fbStopped, fbStarting, fbRunning, fbHolding, fbHeld, fbResuming,
+│        fbCompleting, fbComplete, fbAborting, fbAborted, fbClearing,
+│        fbManual
 │
-├── FB_Barrier                   (* L4a — barrier control + FDI *)
-│   ├── Inputs:  inEnable, inManEnable, inClearFault, inSP2 (HRA_ZAV), inJIZDA, inMan_Zavory
-│   ├── Outputs: outZAVORY, outFault, outFaultCode, outTechstav
-│   └── State machine: IDLE → BLOCKED → LIFTING
+├── FB_DriveCtrl               (* Loco drive — mutual exclusion + voltage fault FDI *)
+│   IN:  inEnable, inClearFault, inKLADNY_cmd, inOPACNY_cmd
+│        inPRE_KLA, inPRE_OPA, inMan_Kladny, inMan_Opacny
+│   OUT: outKLADNY, outOPACNY, outJIZDA, outFault, outFaultCode
+│   Execution order (each scan):
+│     1. Clear fault latch if inClearFault
+│     2. Detect voltage fault (PRE_KLA AND PRE_OPA → latch 16#0001)
+│     3. If fault latched → outJIZDA=TRUE, outKLADNY/OPACNY=FALSE, RETURN
+│        (PLC keeps drive ownership even while stopped — prevents external takeover)
+│     4. If disabled (inEnable=FALSE) → all outputs FALSE, RETURN
+│     5. Mutex on auto commands → latch 16#0002 if both TRUE (currently unreachable; see Sec 5.1)
+│     6. Mutex on manual commands → suppress both silently (no fault)
+│     7. Normal: outKLADNY = auto OR manual; outOPACNY = auto OR manual; outJIZDA=TRUE
 │
-├── FB_SwitchRouter              (* L4b — switch routing + FDI *)
-│   ├── Inputs:  inEnable, inManEnable, inClearFault, inVYHYBKY
-│   │            inKLADNY, inOPACNY, inVYH_LEV/PRA, inHRA_LEV/PRA
-│   │            inMan_IMP_LEV/PRA/ZAD (SCADA OR hardware TLA_LEV/PRA/ZAD buttons)
-│   ├── Outputs: outIMP_LEV/PRA/ZAD, outFault, outFaultCode, outTechstav
-│   └── State machine: IDLE → IMPULSE_C → CHECK_C → IMPULSE_D → CHECK_D
+├── FB_Barrier                 (* L4a — barrier control; direction-aware SP1/SP2 mapping *)
+│   IN:  inEnable, inManEnable, inClearFault
+│        inSP1 (HRA_LEV), inSP2 (HRA_ZAV), inKLADNY, inOPACNY, inJIZDA
+│        inMan_Zavory
+│   OUT: outZAVORY, outFault, outFaultCode, outTechstav: BYTE
+│   Open-loop — no barrier position sensor; outFault always FALSE
+│   (fault publishing infrastructure retained for interface uniformity)
 │
-└── FB_DriveCtrl                 (* Loco drive — mutual exclusion + FDI *)
-    ├── Inputs:  inEnable, inClearFault, inKLADNY_cmd, inOPACNY_cmd
-    │            inPRE_KLA, inPRE_OPA, inMan_Kladny, inMan_Opacny
-    ├── Outputs: outKLADNY, outOPACNY, outJIZDA, outFault, outFaultCode, outgvFault
-    └── Logic:   mutual exclusion interlock + voltage fault detection (PRE_KLA AND PRE_OPA)
+└── FB_SwitchRouter            (* L4b — switch routing + FDI; bTargetOuter toggled on HRA_PRA edge *)
+    IN:  inEnable, inManEnable, inVYHYBKY, inClearFault
+         inVYH_LEV, inVYH_PRA, inHRA_LEV, inHRA_PRA
+         inKLADNY, inOPACNY
+         inMan_IMP_LEV/PRA/ZAD (TLA_* buttons OR SCADA M101)
+    OUT: outIMP_LEV, outIMP_PRA, outIMP_ZAD, outFault, outFaultCode, outTechstav: BYTE
+    Mismatch fault: VYH_LEV ≠ VYH_PRA for > tMismatch (200 ms)
 ```
 
-#### `FB_MachineControl` Interface Summary
+#### State FB Interface Pattern
+
+Each `FB_State_*` block shares the **same output interface** — `FB_MachineControl` reads these uniformly from every state FB each scan:
 
 ```pascal
-FUNCTION_BLOCK FB_MachineControl
-VAR_INPUT
-    inBTN_Start, inBTN_Reset, inBTN_Stop, inBTN_Man  : BOOL;
-    inBTN_EStop   : BOOL;   (* NC — TRUE=safe, FALSE=E-STOP active *)
-    inSCADA_Start, inSCADA_Reset, inSCADA_Stop        : BOOL;
-    inSCADA_Man, inSCADA_EStop                        : BOOL;
-    inServicePin  : INT;
-    inFault_Barrier, inFault_Switch, inFault_Drive    : BOOL;
-END_VAR
 VAR_OUTPUT
-    outEnable_Auto  : BOOL;          (* child FBs run in auto mode *)
-    outEnable_Man   : BOOL;          (* manual commands passed through *)
-    outServiceMode  : BOOL;          (* anti-collision bypassed *)
-    outState        : E_SystemState; (* current PackML state — MAIN reads this; SCADA.systemstav written internally *)
+    outCmd          : E_StateCmd;   (* transition command; NONE = stay *)
+    outEnable_Auto  : BOOL;
+    outEnable_Man   : BOOL;
     outgvFault      : BOOL;
+    outInit_VYHYBKY : BOOL;
+    outInit_IMP_LEV : BOOL;
+    outInit_IMP_PRA : BOOL;
 END_VAR
 ```
+
+Input interfaces differ — each FB declares only the inputs it actually uses:
+
+| FB | Inputs beyond `bExecute` |
+|---|---|
+| `FB_State_Stopped` | `bStart`, `bMan` |
+| `FB_State_Starting` | `inVYH_LEV`, `inVYH_PRA` |
+| `FB_State_Running` | `bStop`, `bMan` |
+| `FB_State_Holding` | *(none)* |
+| `FB_State_Held` | `bStart`, `bMan` |
+| `FB_State_Resuming` | *(none)* |
+| `FB_State_Completing` | *(none)* |
+| `FB_State_Complete` | `bReset` |
+| `FB_State_Aborting` | *(none)* |
+| `FB_State_Aborted` | `bReset`, `bEStop_Safe` |
+| `FB_State_Clearing` | *(none)* |
+| `FB_State_Manual` | `bStop` |
+
+#### `E_StateCmd` — Transition Commands
+
+```pascal
+TYPE E_StateCmd :
+(
+    NONE          := 0,   (* Stay in current state *)
+    TO_STOPPED    := 1,
+    TO_STARTING   := 2,
+    TO_RUNNING    := 3,
+    TO_HOLDING    := 4,
+    TO_HELD       := 5,
+    TO_RESUMING   := 6,
+    TO_COMPLETING := 7,
+    TO_COMPLETE   := 8,
+    TO_ABORTING   := 9,
+    TO_ABORTED    := 10,
+    TO_CLEARING   := 11,
+    TO_MANUAL     := 12
+);
+END_TYPE
+```
+
+#### `FB_State_Starting` — Switch Alignment Steps
+
+> **Note:** `outInit_VYHYBKY = TRUE` is asserted as a static output from the very first scan of STARTING (step 0). `outEnable_Auto` stays FALSE throughout — drive is not enabled until RUNNING.
+
+| Step | Action | Timer |
+|---|---|---|
+| 0 | `outInit_VYHYBKY := TRUE` (immediate). Check VYH_LEV vs VYH_PRA: if equal (both already match each other) → step 5. If VYH_LEV=outer → step 1. If VYH_PRA=outer → step 3. | — |
+| 1 | Pulse **IMP_LEV only** (`outInit_IMP_LEV = TRUE`) — toggles LEV solenoid | tImpulse = 150 ms |
+| 2 | Wait for LEV switch travel, then re-read VYH_LEV/VYH_PRA: if aligned → step 5; otherwise → step 0 (retry) | tWait = 120 ms |
+| 3 | Pulse **IMP_PRA only** (`outInit_IMP_PRA = TRUE`) — toggles PRA solenoid | tImpulse = 150 ms |
+| 4 | Wait for PRA switch travel, then re-read: aligned → step 5, else → step 0 | tWait = 120 ms |
+| 5 | Emit `TO_RUNNING` | — |
+
+> **Key point:** Only ONE switch is pulsed per attempt — STARTING is a *matching* operation (`VYH_LEV = VYH_PRA`), not a *routing* operation. The L4b parallel-rail constraint requires both solenoids to fire together only when actively changing target position; for re-syncing two mismatched switches, a single pulse on the misaligned side is the correct response. Steps 2 and 4 close the loop by verifying the impulse actually moved the switch; if not, the sequence retries from step 0.
 
 #### `techstav` Encoding (`%MW104`)
 
 | Byte | Bits | Meaning |
 |---|---|---|
 | High byte `%MB105` | 0–7 | L4a barrier state: 0=IDLE, 1=BLOCKED, 2=LIFTING |
-| Low byte `%MB104` | 0–7 | L4b switch state: 0=IDLE, 1=IMPULSE_C, 2=CHECK_C, 3=IMPULSE_D, 4=CHECK_D |
+| Low byte `%MB104` | 0–7 | L4b switch state: 0=IDLE, 1=IMPULSE, 2=WAIT |
 
 ---
 
@@ -516,20 +602,33 @@ END_VAR
 ```
 L4_kolejiste/
 ├── GVLs/
-│   ├── IO.TcGVL          (* Raw EtherCAT %IX / %QX addresses *)
-│   ├── TAGS.TcGVL        (* Human-readable signal aliases *)
-│   └── SCADA.TcGVL       (* M-variable declarations %M100–%MW106, OPC UA pragmas *)
+│   ├── IO.TcGVL          (* Raw EtherCAT %IX0.0–%IX1.3 / %QX0.4–%QX1.3 addresses; DI0–DI11, DO4–DO11 *)
+│   ├── TAGS.TcGVL        (* Human-readable signal aliases (VYH_LEV, HRA_PRA, KLADNY, etc.) *)
+│   └── SCADA.TcGVL       (* M-variable declarations %MX100.0–%MW106 with OPC UA pragmas *)
 ├── POUs/
-│   ├── MAIN.TcPOU        (* Top-level PRG: instantiates all FBs, wires ports *)
-│   ├── FB_IO.TcPOU       (* I/O mapping block *)
-│   ├── FB_MachineControl.TcPOU   (* Shared: PackML + modes + E-STOP + PIN *)
-│   ├── FB_Barrier.TcPOU          (* L4a state machine + FDI *)
-│   ├── FB_SwitchRouter.TcPOU     (* L4b state machine + FDI *)
-│   └── FB_DriveCtrl.TcPOU        (* Drive mutual exclusion + voltage fault *)
+│   ├── MAIN.TcPOU                  (* Top-level PRG: FB instances, signal routing, techstav assembly *)
+│   ├── FB_IO.TcPOU                 (* Single I/O access point: GVL_IO ↔ named ports *)
+│   ├── FB_MachineControl.TcPOU    (* PackML dispatcher: E-STOP, fault routing, state FB calls *)
+│   ├── FB_DriveCtrl.TcPOU         (* Drive mutual exclusion + voltage fault FDI *)
+│   ├── FB_Barrier.TcPOU           (* L4a barrier state machine + FDI *)
+│   ├── FB_SwitchRouter.TcPOU      (* L4b switch routing state machine + FDI *)
+│   ├── FB_State_Stopped.TcPOU
+│   ├── FB_State_Starting.TcPOU    (* Multi-step switch alignment on entry *)
+│   ├── FB_State_Running.TcPOU
+│   ├── FB_State_Holding.TcPOU     (* Transient — immediate TO_HELD *)
+│   ├── FB_State_Held.TcPOU
+│   ├── FB_State_Resuming.TcPOU    (* Transient — immediate TO_RUNNING *)
+│   ├── FB_State_Completing.TcPOU  (* 500 ms delay then TO_COMPLETE *)
+│   ├── FB_State_Complete.TcPOU
+│   ├── FB_State_Aborting.TcPOU    (* Transient — immediate TO_ABORTED, outgvFault=TRUE *)
+│   ├── FB_State_Aborted.TcPOU     (* Holds gvFault; blocks RESET until E-STOP cleared *)
+│   ├── FB_State_Clearing.TcPOU    (* Transient — clears gvFault, TO_STOPPED *)
+│   └── FB_State_Manual.TcPOU      (* Manual pass-through; STOP → STOPPED *)
 ├── DUTs/
-│   └── E_SystemState.TcDUT       (* ENUM for systemstav values 0–12 *)
+│   ├── E_SystemState.TcDUT        (* ENUM WORD: PackML states 0–11 *)
+│   └── E_StateCmd.TcDUT           (* ENUM: transition commands NONE/TO_STOPPED/…/TO_MANUAL *)
 └── VISUs/
-    └── Visualization.TcVIS       (* HMI: sensor lamps, state display, fault banner, manual buttons *)
+    └── Visualization.TcVIS        (* HMI: sensor lamps, state display, fault banner, manual buttons *)
 ```
 
 ---
@@ -538,17 +637,19 @@ L4_kolejiste/
 
 | Category | Convention | Examples |
 |---|---|---|
-| Actuators | A, B, C, D, E | A = loco drive, B = barriers, C = left switch, D = right switch, E = rear switch |
-| Actuator outputs | YA0, YA1, YB, YC, YD, YE | YA1 = forward, YA0 = reverse, YB = barriers |
-| Position/gate sensors | Named by location | HRA_LEV, HRA_PRA, HRA_ZAD, HRA_ZAV, VYH_LEV, VYH_PRA, VYH_ZAD |
-| Direction sensors | PRE_KLA, PRE_OPA | PRE_KLA = forward selected, PRE_OPA = reverse selected |
-| Manual buttons | TLA_xxx | TLA_LEV, TLA_PRA, TLA_ZAD |
-| Drive command vars | Acmd (internal) | outKLADNY_cmd → Actuator A command (forward=1, reverse=0 convention) |
-| FB inputs | in prefix | inEnable, inSP2, inKLADNY_cmd |
-| FB outputs | out prefix | outZAVORY, outFault, outFaultCode |
-| SCADA variables | SCADA_ prefix | SCADA_START, SCADA_MAN_KLADNY |
-| State variables | techstav, systemstav | %MW104, %MW106 |
-| Constants | c_ prefix | c_tLiftDelay, c_tImpulseMax, c_ServicePin |
+| Physical inputs (IO GVL) | DIn (n = 0–11) | DI0 = VYH_LEV, DI9 = HRA_LEV, DI11 = HRA_ZAV |
+| Physical outputs (IO GVL) | DOn (n = 4–11) | DO4 = ZAVORY, DO5 = KLADNY, DO10 = VYHYBKY |
+| Tag aliases (TAGS GVL) | Czech function name | VYH_LEV, HRA_PRA, KLADNY, IMP_LEV, VYHYBKY, JIZDA |
+| Dual aliases | Two names, same address | HRA_LEV / SP1, HRA_ZAV / SP2, PRE_KLA / PRE_I, ZAVORY / Z |
+| FB inputs | `in` prefix | inEnable, inSP2, inKLADNY_cmd, inMan_Zavory |
+| FB outputs | `out` prefix | outZAVORY, outFault, outFaultCode, outTechstav |
+| State transition commands | `E_StateCmd.TO_*` | E_StateCmd.TO_RUNNING, E_StateCmd.NONE |
+| SCADA variables | `SCADA_` prefix | SCADA_START, SCADA_MAN_KLADNY |
+| State words | lowercase | techstav (%MW104), systemstav (%MW106) |
+| Constants | `c_` prefix | c_tLiftDelay, c_tImpulseMax, c_tCompleteDelay |
+| Internal state tracking | `b` prefix (BOOL) | bTargetOuter, bExecute |
+| Timers | `t` prefix | tImpLEV, tWaitL, tDebounce, tPreSwitch, tMismatch |
+| Edge detectors | `r` / `f` prefix | rSP1_Rise, fSP1_Fall, rClearing, rtrigHRA_PRA |
 
 ---
 
@@ -564,14 +665,21 @@ Key files and their purpose:
 
 | File | Description |
 |---|---|
-| [MAIN.TcPOU](linka/L4_kolejiste/POUs/MAIN.TcPOU) | Top-level program: FB instantiation, port wiring, techstav assembly |
-| [FB_IO.TcPOU](linka/L4_kolejiste/POUs/FB_IO.TcPOU) | Single point of physical I/O access |
-| [FB_MachineControl.TcPOU](linka/L4_kolejiste/POUs/FB_MachineControl.TcPOU) | PackML state machine, mode logic, E-STOP, service PIN |
-| [FB_Barrier.TcPOU](linka/L4_kolejiste/POUs/FB_Barrier.TcPOU) | L4a barrier state machine + FDI (fault codes 0x0101, 0x0102) |
-| [FB_SwitchRouter.TcPOU](linka/L4_kolejiste/POUs/FB_SwitchRouter.TcPOU) | L4b switch routing state machine + FDI (fault code 0x0003) |
-| [FB_DriveCtrl.TcPOU](linka/L4_kolejiste/POUs/FB_DriveCtrl.TcPOU) | Mutual exclusion + voltage fault detection (fault codes 0x0001, 0x0002) |
-| [E_SystemState.TcDUT](linka/L4_kolejiste/DUTs/E_SystemState.TcDUT) | ENUM: PackML state values 0–12 |
-| [SCADA.TcGVL](linka/L4_kolejiste/GVLs/SCADA.TcGVL) | SCADA M-variable declarations with OPC UA pragmas |
+| [MAIN.TcPOU](linka/L4_kolejiste/POUs/MAIN.TcPOU) | Top-level PRG: FB instantiation, port wiring, techstav assembly, rClearing R_TRIG |
+| [FB_IO.TcPOU](linka/L4_kolejiste/POUs/FB_IO.TcPOU) | Single point of physical I/O access; DO11 held via inForceJIZDA during fault |
+| [FB_MachineControl.TcPOU](linka/L4_kolejiste/POUs/FB_MachineControl.TcPOU) | PackML dispatcher: E-STOP priority, child fault routing, all FB_State_* instances |
+| [FB_DriveCtrl.TcPOU](linka/L4_kolejiste/POUs/FB_DriveCtrl.TcPOU) | Mutual exclusion; voltage fault (PRE_KLA AND PRE_OPA); latched fault codes 16#0001/0002 |
+| [FB_Barrier.TcPOU](linka/L4_kolejiste/POUs/FB_Barrier.TcPOU) | L4a: direction-aware sensor mapping; states IDLE/BLOCKED/LIFTING; open-loop (no position sensor) |
+| [FB_SwitchRouter.TcPOU](linka/L4_kolejiste/POUs/FB_SwitchRouter.TcPOU) | L4b: bTargetOuter toggled on HRA_PRA edge; parallel impulse on both switches; mismatch FDI |
+| [FB_State_Starting.TcPOU](linka/L4_kolejiste/POUs/FB_State_Starting.TcPOU) | Closed-loop switch alignment — checks VYH_LEV vs VYH_PRA; if aligned jumps directly to done; if misaligned pulses one switch (LEV or PRA) for 150 ms, waits 120 ms, re-verifies VYH_LEV = VYH_PRA, retries from start if still mismatched |
+| [FB_State_Manual.TcPOU](linka/L4_kolejiste/POUs/FB_State_Manual.TcPOU) | Manual pass-through; STOP edge → STOPPED |
+| [FB_State_Completing.TcPOU](linka/L4_kolejiste/POUs/FB_State_Completing.TcPOU) | 500 ms graceful stop delay before COMPLETE |
+| [FB_State_Clearing.TcPOU](linka/L4_kolejiste/POUs/FB_State_Clearing.TcPOU) | Clears outgvFault and transitions immediately to STOPPED |
+| [E_SystemState.TcDUT](linka/L4_kolejiste/DUTs/E_SystemState.TcDUT) | ENUM WORD: PackML state values 0–11 |
+| [E_StateCmd.TcDUT](linka/L4_kolejiste/DUTs/E_StateCmd.TcDUT) | ENUM: transition commands returned by each FB_State_* to the dispatcher |
+| [SCADA.TcGVL](linka/L4_kolejiste/GVLs/SCADA.TcGVL) | SCADA M-variable declarations with `{attribute 'OPC.UA.DA' := '1'}` pragmas |
+| [IO.TcGVL](linka/L4_kolejiste/GVLs/IO.TcGVL) | Raw EtherCAT AT addresses: DI0–DI11 (%IX0.0–%IX1.3), DO4–DO11 (%QX0.4–%QX1.3) |
+| [TAGS.TcGVL](linka/L4_kolejiste/GVLs/TAGS.TcGVL) | Symbolic aliases including dual-name declarations (SP1/HRA_LEV, PRE_I/PRE_KLA, etc.) |
 
 > See each file for inline comments explaining state transitions, guard conditions, and timing constants.
 
@@ -616,31 +724,27 @@ OPC UA connectivity uses **TF6100 OPC-UA Server** with the standalone **TwinCAT 
 
 ## 9. Cross-Reference
 
-> **`[PLACEHOLDER]`**
->
-> Export the cross-reference from TwinCAT XAE:
-> - Right-click the PLC project in Solution Explorer
-> - Select **Cross Reference List**
-> - Export to file and paste the table here (or attach as `cross_reference.txt`)
->
-> The cross-reference lists every variable and which POU(s) read or write it.
-> This verifies that `FB_IO` is the only block accessing raw `IO.TcGVL` addresses,
-> and that SCADA variables are only written from `MAIN`.
+Full cross-reference exported from TwinCAT XAE: **[cross references.pdf](cross%20references.pdf)**
+
+The cross-reference verifies:
+- `FB_IO` is the **only** block that reads `IO.TcGVL` raw addresses
+- `SCADA.systemstav` and `SCADA.techstav` are written only from `FB_MachineControl` and `MAIN`
+- `outgvFault` propagation: set in `FB_State_Aborting/Aborted` (via `outgvFault := TRUE`), cleared in `FB_State_Clearing`; forwarded by `FB_MachineControl.outgvFault` → `MAIN.inForceJIZDA` (which holds DO11 / JIZDA high via `FB_IO`). `FB_DriveCtrl` no longer publishes an `outgvFault` of its own — drive-fault routing to MachineControl uses `FB_DriveCtrl.outFault` exclusively.
+- `inClearFault` pulse: generated by `rClearing` R_TRIG in MAIN; passed to `FB_DriveCtrl`, `FB_Barrier`, `FB_SwitchRouter`
 
 ---
 
 ## 10. Test Protocol
 
-> **Test results to be filled in after testing session on `[PLACEHOLDER: date, e.g. 2026-05-09]`.**
->
-> Full test procedure: see [REMIZ_Test_Plan.md](REMIZ_Test_Plan.md)
+> **Test results to be filled in after testing session on `[PLACEHOLDER: date]`.**
 
 ### Prerequisites
 
 - TwinCAT XAE open, `linka/linka.tsproj` loaded
-- Device in **Simulation Mode** (or connected to hardware)
+- Device in **Simulation Mode** (or connected to real hardware)
 - Configuration activated, PLC running
-- Watch window configured with all variables from the test plan
+- Watch window open with: `fbMachine.outState`, `SCADA.systemstav`, `SCADA.techstav`, `IO.DO4`–`IO.DO11`, `fbDrive.outFault`, `fbDrive.outFaultCode`, `fbBarrier.outFault`, `fbSwitchRouter.outFault`, `fbSwitchRouter.bTargetOuter`
+- In MAIN: `inBTN_EStop := TRUE` (NC wired safe; simulation default)
 
 ### Results
 
@@ -648,132 +752,126 @@ OPC UA connectivity uses **TF6100 OPC-UA Server** with the standalone **TwinCAT 
 
 | Step | Action | Expected | Result | Pass? |
 |---|---|---|---|---|
-| 1.1 | PLC started, no inputs forced | `systemstav = 0` (STOPPED) | `[PLACEHOLDER]` | |
-| 1.2 | Check all DO outputs | DO4–DO11 all FALSE | `[PLACEHOLDER]` | |
-| 1.3 | Check `techstav` | 0 (both automata IDLE) | `[PLACEHOLDER]` | |
+| 1.1 | Activate config, start PLC, no inputs forced | `SCADA.systemstav = 0` (STOPPED) | | x|
+| 1.2 | Check DO4–DO11 | All FALSE | |x |
+| 1.3 | Check `SCADA.techstav` | 0x0000 | | x|
 
-#### Test 2 — AUTO Start / Stop Cycle
+#### Test 2 — AUTO Start: switch alignment in STARTING
 
-| Step | Action | Expected | Result | Pass? |
-|---|---|---|---|---|
-| 2.1 | Pulse `SCADA_START` | systemstav → 1 → 2 (RUNNING) | `[PLACEHOLDER]` | |
-| 2.2 | Check DO10 (VYHYBKY) | TRUE | `[PLACEHOLDER]` | |
-| 2.3 | Check DO11 (JIZDA) | TRUE | `[PLACEHOLDER]` | |
-| 2.4 | Pulse `SCADA_STOP` | systemstav → 6 → 7 (COMPLETE) | `[PLACEHOLDER]` | |
-| 2.5 | Check DO5, DO6 | Both FALSE | `[PLACEHOLDER]` | |
-| 2.6 | Pulse `SCADA_RESET` | systemstav = 0 (STOPPED) | `[PLACEHOLDER]` | |
-
-#### Test 3 — Barrier Control (L4a)
+> STARTING is **closed-loop**: after each impulse + 120 ms settle, the FB re-reads VYH_LEV and VYH_PRA; if still mismatched it retries the pulse, otherwise it transitions to RUNNING. In simulation you must manually toggle the DI to mimic the physical switch movement during the settle window, otherwise STARTING will loop forever.
 
 | Step | Action | Expected | Result | Pass? |
 |---|---|---|---|---|
-| 3.1 | RUNNING, DO4=FALSE | Barriers up (IDLE) | `[PLACEHOLDER]` | |
-| 3.2 | Set DI11=TRUE (loco arrives) | techstav high=1 (BLOCKED), DO4=TRUE | `[PLACEHOLDER]` | |
-| 3.3 | Set DI11=FALSE (loco clears) | high=2 (LIFTING), DO4 still TRUE | `[PLACEHOLDER]` | |
-| 3.4 | Wait 500 ms | high=0 (IDLE), DO4=FALSE | `[PLACEHOLDER]` | |
-| 3.5 | DI11=TRUE again during LIFTING | high→1 (BLOCKED again) | `[PLACEHOLDER]` | |
-| 3.6 | DI11=FALSE, wait 500 ms | Returns to IDLE | `[PLACEHOLDER]` | |
+| 2.1 | Set DI0=TRUE, DI1=FALSE (VYH_LEV=outer, VYH_PRA=inner — mismatched). Pulse `SCADA_START` | `systemstav → 1` (STARTING); DO10=TRUE immediately | |x |
+| 2.2 | Observe DO7 (IMP_LEV) | TRUE for ~150 ms, then FALSE; DO8 stays FALSE throughout | | x|
+| 2.3 | While DO7=FALSE and within the 120 ms settle window: force DI0=FALSE (simulate LEV switch moving to inner) | After settle, verification passes (DI0=DI1=FALSE) → `systemstav → 2` (RUNNING); DO11=TRUE | | x|
+| 2.4 | Reset to STOPPED. Set DI0=FALSE, DI1=TRUE (mismatched the other way). Pulse `SCADA_START` | DO7 stays FALSE; DO8=TRUE for ~150 ms, then FALSE | | x|
+| 2.5 | During settle: force DI1=FALSE | Verification passes → RUNNING | | x|
+| 2.6 | Verify retry path: repeat 2.1 but do **not** toggle DI0 during settle | After 270 ms, DO7 pulses **again** (step 0 → step 1 retry); system stays in STARTING | | x|
+| 2.7 | Set DI0=DI1 (already matched). Pulse `SCADA_START` | No impulse on DO7 or DO8 — STARTING transitions to RUNNING immediately | | x|
 
-#### Test 4a — Switch Routing: Both Switches Wrong
-
-| Step | Action | Expected | Result | Pass? |
-|---|---|---|---|---|
-| 4.1 | DI0=FALSE, DI1=FALSE (wrong/inner) | techstav low=1 (IMPULSE_C), DO7=TRUE | `[PLACEHOLDER]` | |
-| 4.2 | Wait, DI0 stays FALSE | low=2 (CHECK_C), DO7=FALSE | `[PLACEHOLDER]` | |
-| 4.3 | DI1 still FALSE | low=3 (IMPULSE_D), DO8=TRUE | `[PLACEHOLDER]` | |
-| 4.4 | Wait | low=4 (CHECK_D), DO8=FALSE | `[PLACEHOLDER]` | |
-| 4.5 | Wait | low=0 (IDLE) | `[PLACEHOLDER]` | |
-
-#### Test 4b — Switches Already Correct
+#### Test 3 — AUTO Stop cycle (COMPLETING delay)
 
 | Step | Action | Expected | Result | Pass? |
 |---|---|---|---|---|
-| 4.6 | DI0=TRUE, DI1=TRUE (outer=correct) | low=0, no impulse outputs | `[PLACEHOLDER]` | |
+| 3.1 | In RUNNING, pulse `SCADA_STOP` | systemstav → 6 (COMPLETING) | | x|
+| 3.2 | Wait 500 ms | systemstav → 7 (COMPLETE); DO5, DO6=FALSE | |x |
+| 3.3 | Pulse `SCADA_RESET` | systemstav → 0 (STOPPED) | |x |
 
-#### Test 4c — Anti-collision: Loco on Switch
+#### Test 4 — Barrier control L4a (forward direction)
 
-| Step | Action | Expected | Result | Pass? |
-|---|---|---|---|---|
-| 4.7 | DI0=FALSE (wrong), DI9=TRUE (loco on gate) | low stays 0 — no impulse | `[PLACEHOLDER]` | |
-| 4.8 | DI9=FALSE (loco cleared) | low=1 (IMPULSE_C) starts | `[PLACEHOLDER]` | |
-
-#### Test 4d — Reverse Direction
+> Forward: KLADNY=TRUE. Entry = SP1/HRA_LEV (DI9). Exit = SP2/HRA_ZAV (DI11) falling edge.
 
 | Step | Action | Expected | Result | Pass? |
 |---|---|---|---|---|
-| 4.9 | DI3=FALSE, DI4=TRUE (reverse) | Required = inner (0) | `[PLACEHOLDER]` | |
-| 4.10 | DI0=TRUE, DI1=TRUE (outer=wrong) | Impulse sequence starts | `[PLACEHOLDER]` | |
+| 4.1 | RUNNING, DI3=TRUE (PRE_KLA forward), DO4=FALSE | techstav high byte = 0 (IDLE) | | x|
+| 4.2 | Set DI9=TRUE (HRA_LEV rising edge) | techstav high → 1 (BLOCKED); DO4=TRUE | |x |
+| 4.3 | Set DI11=FALSE (HRA_ZAV falling edge — loco cleared) | techstav high → 2 (LIFTING); DO4 still TRUE | | x|
+| 4.4 | Wait 500 ms (`c_tLiftDelay`) | techstav high → 0 (IDLE); DO4=FALSE | | x|
+| 4.5 | Repeat 4.2, then during LIFTING set DI9=TRUE again | techstav high → 1 (BLOCKED — re-arms barrier) | | x|
+| 4.6 | DI9=FALSE → DI11 falling edge, wait 500 ms | techstav high → 0 (IDLE) | | x|
 
-#### Test 5 — Manual Mode
+#### Test 5 — Barrier control L4a (reverse direction)
 
-| Step | Action | Expected | Result | Pass? |
-|---|---|---|---|---|
-| 5.1 | Pulse SCADA_MAN from STOPPED | systemstav=11 (MANUAL) | `[PLACEHOLDER]` | |
-| 5.2 | SCADA_MAN_ZAVORY=TRUE | DO4=TRUE | `[PLACEHOLDER]` | |
-| 5.3 | SCADA_MAN_ZAVORY=FALSE | DO4=FALSE | `[PLACEHOLDER]` | |
-| 5.4 | SCADA_MAN_KLADNY=TRUE | DO5=TRUE | `[PLACEHOLDER]` | |
-| 5.5 | SCADA_MAN_OPACNY=TRUE (with KLADNY TRUE) | Both FALSE (mutex) | `[PLACEHOLDER]` | |
-| 5.6 | KLADNY=FALSE, OPACNY=TRUE | DO6=TRUE | `[PLACEHOLDER]` | |
-
-#### Test 6 — E-STOP from RUNNING
+> Reverse: OPACNY=TRUE. Entry = SP2/HRA_ZAV (DI11). Exit = SP1/HRA_LEV (DI9) falling edge.
 
 | Step | Action | Expected | Result | Pass? |
 |---|---|---|---|---|
-| 6.1 | Confirm RUNNING | systemstav=2 | `[PLACEHOLDER]` | |
-| 6.2 | SCADA_ESTOP=TRUE | systemstav→8→9 (ABORTED) | `[PLACEHOLDER]` | |
-| 6.3 | Check all DO outputs | DO4–DO11 all FALSE | `[PLACEHOLDER]` | |
-| 6.4 | RESET while ESTOP still TRUE | systemstav stays 9 | `[PLACEHOLDER]` | |
-| 6.5 | SCADA_ESTOP=FALSE, pulse RESET | systemstav→10→0 (STOPPED) | `[PLACEHOLDER]` | |
+| 5.1 | RUNNING, DI4=TRUE (PRE_OPA reverse) | techstav high = 0 (IDLE), DO4=FALSE | | x|
+| 5.2 | Set DI11=TRUE (HRA_ZAV rising edge) | techstav high → 1 (BLOCKED); DO4=TRUE | | x|
+| 5.3 | Set DI9=FALSE (HRA_LEV falling edge) | techstav high → 2 (LIFTING); DO4 still TRUE | | x|
+| 5.4 | Wait 500 ms | techstav high → 0 (IDLE); DO4=FALSE | | x|
 
-#### Test 7 — E-STOP from MANUAL
-
-| Step | Action | Expected | Result | Pass? |
-|---|---|---|---|---|
-| 7.1 | MANUAL, SCADA_MAN_KLADNY=TRUE | DO5=TRUE | `[PLACEHOLDER]` | |
-| 7.2 | SCADA_ESTOP=TRUE | systemstav=9 (ABORTED), DO5=FALSE | `[PLACEHOLDER]` | |
-| 7.3 | Clear ESTOP, pulse RESET | systemstav=0 (STOPPED) | `[PLACEHOLDER]` | |
-
-#### Test 8 — Voltage Fault (FDI)
+#### Test 6 — Switch routing L4b: impulse + settle
 
 | Step | Action | Expected | Result | Pass? |
 |---|---|---|---|---|
-| 8.1 | Confirm RUNNING | systemstav=2 | `[PLACEHOLDER]` | |
-| 8.2 | DI3=TRUE AND DI4=TRUE simultaneously | systemstav→9, all outputs FALSE | `[PLACEHOLDER]` | |
-| 8.3 | Check fbDrive.outFault | TRUE | `[PLACEHOLDER]` | |
-| 8.4 | Check fbDrive.outFaultCode | 16#0001 | `[PLACEHOLDER]` | |
-| 8.5 | DI3=FALSE, DI4=FALSE | Fault stays latched | `[PLACEHOLDER]` | |
-| 8.6 | Pulse RESET | systemstav=0, fault cleared | `[PLACEHOLDER]` | |
+| 6.1 | RUNNING, bTargetOuter=TRUE, set DI0=FALSE / DI1=FALSE (inner=wrong) | techstav low → 1 (IMPULSE); DO7+DO8=TRUE simultaneously | | x|
+| 6.2 | Set DI0=TRUE, DI1=TRUE (position confirmed during impulse) | DO7+DO8=FALSE; techstav low → 2 (WAIT) | | x|
+| 6.3 | Wait 50 ms settle | techstav low → 0 (IDLE) | | x|
+| 6.4 | DI0=TRUE, DI1=TRUE, bTargetOuter=TRUE (already correct) | techstav low stays 0, no impulse outputs | | x|
 
-#### Test 9 — HOLD / RESUME Cycle
+
+#### Test 7 — Manual mode
 
 | Step | Action | Expected | Result | Pass? |
 |---|---|---|---|---|
-| 9.1 | Confirm RUNNING | systemstav=2 | `[PLACEHOLDER]` | |
-| 9.2 | Pulse SCADA_MAN (Hold) | systemstav→3→4 (HELD) | `[PLACEHOLDER]` | |
-| 9.3 | Check drive outputs | DO5, DO6=FALSE | `[PLACEHOLDER]` | |
-| 9.4 | Pulse SCADA_START (Resume) | systemstav→5→2 (RUNNING) | `[PLACEHOLDER]` | |
+| 7.1 | Pulse `SCADA_MAN` from STOPPED | systemstav → 11 (MANUAL) | |x |
+| 7.2 | `SCADA_MAN_ZAVORY=TRUE` | DO4=TRUE | | x|
+| 7.3 | `SCADA_MAN_ZAVORY=FALSE` | DO4=FALSE | |x |
+| 7.4 | `SCADA_MAN_KLADNY=TRUE` | DO5=TRUE | | x|
+| 7.5 | `SCADA_MAN_OPACNY=TRUE` while KLADNY still TRUE | Both DO5+DO6=FALSE (manual mutex in `FB_DriveCtrl`) | | x|
+| 7.6 | `SCADA_MAN_KLADNY=FALSE`, `SCADA_MAN_OPACNY=TRUE` | DO6=TRUE | | x|
+| 7.7 | `SCADA_MAN_IMP_LEV=TRUE` | DO7=TRUE AND DO8=TRUE simultaneously (parallel rail constraint) | |x |
+| 7.8 | Pulse `SCADA_STOP` | systemstav → 0 (STOPPED) | | x|
+
+#### Test 8 — E-STOP from RUNNING + JIZDA behavior
+
+| Step | Action | Expected | Result | Pass? |
+|---|---|---|---|---|
+| 8.1 | Confirm RUNNING, DO11=TRUE | systemstav=2 | | x|
+| 8.2 | Set `SCADA_ESTOP=TRUE` | systemstav → 8 (ABORTING) → 9 (ABORTED) | | x|
+| 8.3 | Check DO4, DO5, DO6 | All FALSE | | x|
+| 8.4 | Check DO11 (JIZDA) | **TRUE** — PLC retains drive ownership via `inForceJIZDA` | | x|
+| 8.5 | Pulse `SCADA_RESET` while ESTOP still TRUE | systemstav stays 9 | |x |
+| 8.6 | Set `SCADA_ESTOP=FALSE`, pulse `SCADA_RESET` | systemstav → 10 (CLEARING) → 0 (STOPPED); DO11=FALSE | | x|
+
+
+#### Test 9 — HOLD / RESUME
+
+| Step | Action | Expected | Result | Pass? |
+|---|---|---|---|---|
+| 9.1 | Confirm RUNNING | systemstav=2 | | x|
+| 9.2 | Pulse `SCADA_MAN` | systemstav → 3 (HOLDING) → 4 (HELD) | | x|
+| 9.3 | Check DO5, DO6 | FALSE (drive stopped) | | x|
+| 9.4 | Check DO10, DO11 | Both still TRUE | | x|
+| 9.5 | Pulse `SCADA_START` (Resume) | systemstav → 5 (RESUMING) → 2 (RUNNING) | | x|
+
+#### Test 10 — HELD → MANUAL transition
+
+| Step | Action | Expected | Result | Pass? |
+|---|---|---|---|---|
+| 10.1 | Reach HELD  | systemstav=4 | | x|
+| 10.2 | Pulse `SCADA_MAN` | systemstav → 11 (MANUAL) | |x |
+| 10.3 | Confirm `outEnable_Man=TRUE` | Manual commands active | |x|
 
 ### Summary
 
 | Test | Description | Pass? | Notes |
 |---|---|---|---|
 | 1 | Power-on safe state | | |
-| 2 | AUTO start/stop cycle | | |
-| 3 | Barrier L4a sequence + lift delay | | |
-| 4a | Switch routing — both wrong | | |
-| 4b | Switch routing — already correct | | |
-| 4c | Switch routing — anti-collision | | |
-| 4d | Switch routing — reverse direction | | |
-| 5 | Manual mode + mutex | | |
-| 6 | E-STOP from RUNNING | | |
-| 7 | E-STOP from MANUAL | | |
-| 8 | Voltage fault FDI | | |
-| 9 | HOLD / RESUME | | |
+| 2 | STARTING switch alignment (aligned / misaligned) | | |
+| 3 | AUTO stop — COMPLETING 500 ms delay | | |
+| 4 | Barrier L4a — forward direction sequence | | |
+| 5 | Barrier L4a — reverse direction sequence | | |
+| 7 | Switch routing — anti-collision gate guard | | |
+| 8 | Manual mode — barriers, drive mutex, parallel switch impulse | | |
+| 9 | HOLD / RESUME cycle | | |
+| 10 | HELD → MANUAL transition | | |
 
-> **Tester:** `[PLACEHOLDER: name]`  
-> **Date:** `[PLACEHOLDER: date]`  
-> **Hardware / Simulation:** `[PLACEHOLDER: Hardware / Simulation Mode]`  
-> **TwinCAT build:** 4026.21
+> **Tester:** `[Mykyta Zaizzhai]`  
+> **Date:** `[11.05.2026]`  
+> **TwinCAT build:** 4024.62
 
 ---
 
@@ -801,12 +899,24 @@ Per project requirements (*"Součástí dokumentace jsou kompletní konverzace +
 
 ### Conversation 2 — OPC UA Setup & Documentation
 
-> **`[PLACEHOLDER]`**
->
 > - **Date:** 2026-05-08
 > - **Model:** Claude Sonnet 4.6 (claude-sonnet-4-6)
 > - **Tool:** Claude Code (VSCode extension)
-> - **Content generated:** OPC UA setup rewrite for standalone TwinCAT OPC UA Configurator + mySCADA workflow, full DOCUMENTATION.md
+> - **Content generated:** OPC UA setup rewrite for standalone TwinCAT OPC UA Configurator + mySCADA workflow, initial DOCUMENTATION.md
+>
+> Paste full conversation below:
+> ```
+> [PASTE FULL CONVERSATION HERE — export from Claude Code session]
+> ```
+
+---
+
+### Conversation 3 — Documentation Rewrite (Code-Accurate)
+
+> - **Date:** 2026-05-12
+> - **Model:** Claude Sonnet 4.6 (claude-sonnet-4-6)
+> - **Tool:** Claude Code (VSCode extension)
+> - **Content generated:** Full documentation rewrite based on actual source code reading — corrected I/O addresses, FB decomposition (dispatcher pattern + FB_State_* blocks), direction-aware FB_Barrier, bTargetOuter logic in FB_SwitchRouter, E_StateCmd enum, FB_State_Starting switch alignment, real constants and timers, updated test protocol (Tests 9–10 added)
 >
 > Paste full conversation below:
 > ```
@@ -816,4 +926,4 @@ Per project requirements (*"Součástí dokumentace jsou kompletní konverzace +
 ---
 
 *REMIZ Project Documentation · TwinCAT 3 / Beckhoff · L4_kolejiste · Tasks L4a & L4b*  
-*Generated with AI assistance (Claude Sonnet 4.6) · 2026-05-08*
+*Generated with AI assistance (Claude Sonnet 4.6) · 2026-05-12*

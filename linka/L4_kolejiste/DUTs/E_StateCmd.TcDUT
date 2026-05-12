@@ -18,8 +18,7 @@ TYPE E_StateCmd :
     TO_ABORTING     := 9,
     TO_ABORTED      := 10,
     TO_CLEARING     := 11,
-    TO_MANUAL       := 12,
-    TO_SERVICE      := 13
+    TO_MANUAL       := 12
 );
 END_TYPE
 ]]></Declaration>

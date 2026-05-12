@@ -3,8 +3,8 @@
   <POU Name="FB_SwitchRouter" Id="{a1b2c3d4-0006-4000-8000-000000000006}" SpecialFunc="None">
     <Declaration><![CDATA[// L4b — Switch routing (výhybkový automat).
 // Aligns left (C) and right (D) double-track switches based on drive direction.
-// State machine: IDLE → IMPULSE_C → CHECK_C → [IMPULSE_D → CHECK_D →] IDLE
-// Impulse runs up to 1 s; stops early if position sensor confirms switch moved.
+// State machine: IDLE → IMPULSE (both LEV+PRA simultaneously) → WAIT (50 ms settle) → IDLE
+// Impulse runs up to 1 s; stops early if position sensors confirm both switches moved.
 // Runs only when inEnable = TRUE (set by FB_MachineControl).
 FUNCTION_BLOCK FB_SwitchRouter
 VAR_INPUT
@@ -15,8 +15,8 @@ VAR_INPUT
     inVYH_PRA     : BOOL;  // Poloha pravé výhybky (1 = vnější kolej)
     inHRA_LEV     : BOOL;  // SP1 — vozidlo na levém hradle (nesmí přestavovat)
     inHRA_PRA     : BOOL;  // Vozidlo na pravém hradle (nesmí přestavovat)
-	inKLADNY : BOOL;
-inOPACNY : BOOL;
+    inKLADNY      : BOOL;  // Směr jízdy: kupředu
+    inOPACNY      : BOOL;  // Směr jízdy: pozpátku
     inClearFault  : BOOL;  // TRUE for one scan when CLEARING state entered (from MAIN rClearing.Q)
 
     // Manual overrides
@@ -30,11 +30,11 @@ VAR_OUTPUT
     outIMP_ZAD  : BOOL;  // Impuls zadní výhybky (rozšíření)
     outFault     : BOOL;
     outFaultCode : WORD;
-    outTechstav  : BYTE;  // Stav L4b: 0=IDLE,1=IMP_C,2=CHECK_C,3=IMP_D,4=CHECK_D (→ low byte MW104)
+    outTechstav  : BYTE;  // Stav L4b: 0=IDLE, 1=IMPULSE, 2=WAIT (→ low byte %MW104)
 END_VAR
 VAR
     eState          : INT := 0;
-    // 0=IDLE, 1=IMPULSE_C, 2=CHECK_C, 3=IMPULSE_D, 4=CHECK_D
+    // 0=IDLE, 1=IMPULSE (levá+pravá současně), 2=WAIT (50 ms settle)
 
     bFault_latch    : BOOL;   // Latch: porucha drží až do CLEARING
     wFaultCode_hold : WORD;   // Uložení kódu poruchy po latch
@@ -43,22 +43,18 @@ VAR
     bLEV_Wrong      : BOOL;  // Levá výhybka v nesprávné poloze
     bPRA_Wrong      : BOOL;  // Pravá výhybka v nesprávné poloze
 
-   tImpLEV  : TON;   // timer for left switch impulse
-tImpPRA  : TON;   // timer for right switch impulse
-tWaitL   : TON;   // settle wait after left switch
-tWaitR   : TON;   // settle wait after right switch
+    tImpLEV         : TON;   // Impulse hold timer (shared by both IMP_LEV and IMP_PRA)
+    tWaitL          : TON;   // 50 ms settle wait after impulse
+    tMismatch       : TON;   // 200 ms mismatch fault timeout (VYH_LEV ≠ VYH_PRA)
+    tDebounce       : TON;   // 2 s debounce after toggle in OPACNY direction
+    tPreSwitch      : TON;   // 1 s pre-switch delay before toggle in OPACNY direction
+
+    rtrigHRA_PRA    : R_TRIG;  // Rising edge — train arrives at right gate
+    bTargetOuter    : BOOL;    // Target switch position (toggled on HRA_PRA rising edge)
+    bDebouncing     : BOOL;    // TRUE while debounce is active
+    bPending        : BOOL;    // Toggle pending, waiting for pre-switch delay
 
     c_tImpulseMax   : TIME := T#1000MS;
-	tMismatch: TON;
-	IN: INT;
-	PT: INT;
-	Q: INT;
-rtrigHRA_PRA : R_TRIG;  // Rising edge — train arrives at right gate
-bTargetOuter : BOOL;
-tDebounce    : TON;   // debounce delay for OPACNY direction
-bDebouncing  : BOOL;  // TRUE while debounce is active
-tPreSwitch : TON;   // delay before switching in OPACNY direction
-bPending   : BOOL;  // toggle is pending, waiting for pre-switch delay
 END_VAR
 ]]></Declaration>
     <Implementation>
@@ -94,9 +90,7 @@ IF NOT inEnable THEN
     eState      := 0;
     outTechstav := 0;
     tImpLEV(IN := FALSE);
-tImpPRA(IN := FALSE);
 tWaitL(IN := FALSE);
-tWaitR(IN := FALSE);
     RETURN;
 END_IF
 
@@ -163,7 +157,7 @@ CASE eState OF
     outIMP_PRA := FALSE;
     tImpLEV(IN := FALSE);
     tWaitL(IN := FALSE);
-    IF bLEV_Wrong AND NOT inHRA_LEV THEN
+    IF bLEV_Wrong AND NOT inHRA_LEV AND NOT inHRA_PRA THEN
         eState := 1;
     END_IF
 

@@ -14,13 +14,7 @@ VAR
 
     // One-scan pulse when CLEARING state is entered — clears fault latches
     rClearing       : R_TRIG;
-	inVYH_LEV: BOOL;
-	inVYH_PRA: BOOL;
-	inPRE_KLA: BOOL;
-	inPRE_OPA: BOOL;
-	inIMP_LEV: BOOL;
-	inIMP_PRA: BOOL;
-	inVYHYBKY: BOOL;
+
 	sStateText : STRING(20);
 
 END_VAR
@@ -40,8 +34,6 @@ CASE fbMachine.outState OF
     E_SystemState.ABORTED:      sStateText := 'ABORTED';
     E_SystemState.CLEARING:     sStateText := 'CLEARING';
     E_SystemState.MANUAL:       sStateText := 'MANUAL';
-    E_SystemState.SERVICE:      sStateText := 'SERVICE';
-    E_SystemState.WAITING_DIR:  sStateText := 'WAITING_DIR';
     ELSE                        sStateText := 'UNKNOWN';
 END_CASE
 // ═══════════════════════════════════════════════════════════════════════
@@ -55,7 +47,7 @@ fbMachine(
     inBTN_Reset     := FALSE,
     inBTN_Stop      := FALSE,
     inBTN_Man       := FALSE,
-    inBTN_EStop     := True,    // NC input — TRUE = safe. No HW wired in simulation.
+    inBTN_EStop     := TRUE,    // NC input — TRUE = safe. No HW wired in simulation.
 
     // SCADA M-variables (%M100.x) — use these to control from TwinCAT Watch window
     inSCADA_Start   := SCADA.SCADA_START,
@@ -64,16 +56,12 @@ fbMachine(
     inSCADA_Man     := SCADA.SCADA_MAN,
     inSCADA_EStop   := SCADA.SCADA_ESTOP,
 
-    inServicePin    := 0,       // Wire to HMI PIN input when VIS_Main is built
-
     inFault_Barrier := fbBarrier.outFault,
     inFault_Switch  := fbSwitchRouter.outFault,
     inFault_Drive   := fbDrive.outFault,
 	
 	inVYH_LEV       := fbIO.outVYH_LEV,
-    inVYH_PRA       := fbIO.outVYH_PRA,
-    inPRE_KLA       := fbIO.outPRE_KLA,
-    inPRE_OPA       := fbIO.outPRE_OPA,
+    inVYH_PRA       := fbIO.outVYH_PRA
 );
 
 // Detect entry into CLEARING state → one-scan pulse to clear fault latches

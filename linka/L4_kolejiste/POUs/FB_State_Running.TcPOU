@@ -13,7 +13,6 @@ VAR_OUTPUT
     outCmd          : E_StateCmd := E_StateCmd.NONE;
     outEnable_Auto  : BOOL;
     outEnable_Man   : BOOL;
-    outServiceMode  : BOOL;
     outgvFault      : BOOL;
     outInit_VYHYBKY : BOOL;
     outInit_IMP_LEV : BOOL;
@@ -25,7 +24,6 @@ END_VAR
     outCmd          := E_StateCmd.NONE;
     outEnable_Auto  := FALSE;
     outEnable_Man   := FALSE;
-    outServiceMode  := FALSE;
     outgvFault      := FALSE;
     outInit_VYHYBKY := FALSE;
     outInit_IMP_LEV := FALSE;
@@ -35,7 +33,6 @@ END_IF
 
 outEnable_Auto  := TRUE;
 outEnable_Man   := FALSE;
-outServiceMode  := FALSE;
 outgvFault      := FALSE;
 outInit_VYHYBKY := FALSE;
 outInit_IMP_LEV := FALSE;

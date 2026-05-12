@@ -23,7 +23,6 @@ VAR_OUTPUT
     outJIZDA     : BOOL;  // PLC vlastní řízení jízdy (guard pro FB_Barrier/SwitchRouter)
     outFault     : BOOL;  // FDI: latched fault flag
     outFaultCode : WORD;  // Kód aktivní poruchy
-    outgvFault   : BOOL;  // Napěťová porucha (PRE_KLA AND PRE_OPA)
 END_VAR
 VAR
     bFault_latch    : BOOL;   // Latch: porucha drží až do CLEARING
@@ -58,7 +57,6 @@ END_IF
 // ═══════════════════════════════════════════════════════════════════════
 outFault     := bFault_latch;
 outFaultCode := wFaultCode_hold;
-outgvFault   := (wFaultCode_hold = c_FAULT_VOLTAGE) AND bFault_latch;
 
 // ═══════════════════════════════════════════════════════════════════════
 // 4. If fault active — de-energise drive immediately
